@@ -1,0 +1,15 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\Timer.obj",
+".\Objects\Device.obj",
+".\Objects\iic.obj",
+".\Objects\onewire.obj",
+".\Objects\KBD.obj",
+".\Objects\SEG.obj",
+".\Objects\ds1302.obj",
+".\Objects\DS18B20.obj",
+".\Objects\ADDA.obj",
+".\Objects\EEPROM.obj",
+".\Objects\Usonic.obj" 
+TO ".\Objects\15318178" 
+PRINT(".\Listings\15318178.m51") RAMSIZE(256) 

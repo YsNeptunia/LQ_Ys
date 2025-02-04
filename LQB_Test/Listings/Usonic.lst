@@ -1,0 +1,73 @@
+C51 COMPILER V9.60.0.0   USONIC                                                            04/20/2024 22:47:13 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE USONIC
+OBJECT MODULE PLACED IN .\Objects\Usonic.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE Usonic.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\Usonic
+                    -.lst) TABS(2) OBJECT(.\Objects\Usonic.obj)
+
+line level    source
+
+   1          #include "Usonic.h"
+   2          
+   3          void Delay12us(void)  //@12.000MHz
+   4          {
+   5   1        unsigned char data i;
+   6   1      
+   7   1        _nop_();
+   8   1        _nop_();
+   9   1        i = 38; //33
+  10   1        while (--i);
+  11   1      }
+  12          
+  13          void Ultra_Init()
+  14          {
+  15   1        u8 i;
+  16   1        
+  17   1        for(i = 0;i < 8;i++){
+  18   2          Tx = 1;
+  19   2          Delay12us();
+  20   2          Tx = 0;
+  21   2          Delay12us();
+  22   2        }
+  23   1      }
+  24          
+  25          u8 Ultra_Read()
+  26          {
+  27   1        u16 t;
+  28   1        
+  29   1        CH = CL = 0;
+  30   1        CCON = 0;
+  31   1        
+  32   1        EA = 0;
+  33   1        Ultra_Init();
+  34   1        EA = 1;
+  35   1        
+  36   1        CR = 1;
+  37   1        while(Rx && ~CF);
+  38   1        CR = 0;
+  39   1        if(CF == 0){
+  40   2          t = CH << 8 | CL;
+  41   2          return (t * 0.017);
+  42   2        }
+  43   1        else{
+  44   2          CF = 0;
+  45   2          return 0;
+  46   2        }
+  47   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     95    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+C51 COMPILER V9.60.0.0   USONIC                                                            04/20/2024 22:47:13 PAGE 2   
+
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

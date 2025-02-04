@@ -1,0 +1,294 @@
+C51 COMPILER V9.60.0.0   MAIN                                                              04/16/2024 00:34:25 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main.lst
+                    -) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "System.h"
+   2          
+   3          //计时变量
+   4          u8 icnt;
+   5          u8 keycnt,segcnt;
+   6          u16 Timer_1000ms;
+   7          u8 Timer_200ms;
+   8          bit flash;
+   9          
+  10          //题设变量
+  11          u8 mode = 1;//显示模式切换。1~4：频率、参数、时间和回显四个界面
+  12          bit pmode = 0;//参数显示切换
+  13          bit echo = 0;//回显模式切换。0~1：频率回显和时间回显两个子界面
+  14          u16 freq;//原始频率
+  15          long f;//显示频率
+  16          u16 p1 = 2000;//超限参数
+  17          int p2 = 0;//校准值参数
+  18          u8 rtc[3] = {0x13,0x03,0x05};//实时时间
+  19          long fmax = 0;//回显最大频率
+  20          u8 tmax[3];//回显最大频率发生时间
+  21          float v;//DAC输出电压
+  22          
+  23          void mInfo_Process()
+  24          {
+  25   1        u8 i;
+  26   1        
+  27   1        if(icnt)  return;
+  28   1        icnt = 1;
+  29   1      
+  30   1        for(i = 0; i < 3; i++){
+  31   2          DS1302_Read(rtc);
+  32   2        }
+  33   1        
+  34   1        if(f < 0) DA_Write(0x00);
+  35   1        else{
+  36   2          if(f < 500) v = 1.0;
+  37   2          else if(f < p1) v = (4.0/(p1-500)) * f;
+  38   2          else  v = 5.0;
+  39   2          DA_Write((u8)(v * 51));
+  40   2        }
+  41   1        
+  42   1        if(f > fmax){
+  43   2          fmax = f;
+  44   2          for(i = 0; i < 3; i++){
+  45   3            tmax[i] = rtc[i];
+  46   3          }
+  47   2        }
+  48   1      }
+  49          
+  50          
+  51          
+  52          void KBD_Process()
+  53          {
+  54   1        if(keycnt)  return;
+C51 COMPILER V9.60.0.0   MAIN                                                              04/16/2024 00:34:25 PAGE 2   
+
+  55   1        keycnt = 1;
+  56   1      
+  57   1        KBD_Read();
+  58   1        
+  59   1        if(pres == 0x88){
+  60   2          if(++mode > 4)
+  61   2            mode = 1;
+  62   2          pmode = 0;
+  63   2          echo = 0;
+  64   2          return;
+  65   2        }
+  66   1        
+  67   1        if(pres == 0x84){
+  68   2          if(mode == 2)
+  69   2            pmode = ~pmode;
+  70   2          if(mode == 4)
+  71   2            echo = ~echo;
+  72   2          return;
+  73   2        }
+  74   1        
+  75   1        if(mode == 2){
+  76   2          if(pres == 0x48){
+  77   3            if(pmode){
+  78   4              if(p2 != 900)
+  79   4                p2 += 100;
+  80   4            }
+  81   3            else{
+  82   4              if(p1 != 9000)
+  83   4                p1 += 1000;
+  84   4            }
+  85   3            return;
+  86   3          }
+  87   2          if(pres == 0x44){
+  88   3            if(pmode){
+  89   4              if(p2 != -900)
+  90   4                p2 -= 100;
+  91   4            }
+  92   3            else{
+  93   4              if(p1 != 1000)
+  94   4                p1 -= 1000;
+  95   4            }
+  96   3            return;
+  97   3          }
+  98   2        }
+  99   1      }
+ 100          
+ 101          void SEG_Process()
+ 102          {
+ 103   1        u8 i;
+ 104   1        u8 buf[8];//暂存
+ 105   1        
+ 106   1        if(segcnt)  return;
+ 107   1        segcnt = 1;
+ 108   1      
+ 109   1        switch(mode)
+ 110   1        {
+ 111   2          case 1:{
+ 112   3            seg_buf[0] = tab[15];
+ 113   3            seg_buf[1] = 0xff;
+ 114   3            seg_buf[2] = 0xff;
+ 115   3            
+ 116   3            if(f >= 0){
+C51 COMPILER V9.60.0.0   MAIN                                                              04/16/2024 00:34:25 PAGE 3   
+
+ 117   4              buf[3] = tab[(u8)(f / 10000 % 10)];
+ 118   4              buf[4] = tab[(u8)(f / 1000 % 10)];
+ 119   4              buf[5] = tab[(u8)(f / 100 % 10)];
+ 120   4              buf[6] = tab[(u8)(f / 10 % 10)];
+ 121   4              buf[7] = tab[(u8)(f % 10)];
+ 122   4              i = 3;
+ 123   4              while(buf[i] == tab[0]){
+ 124   5                buf[i] = 0xff;//熄灭无效位
+ 125   5                if(++i == 7)  break;//保证最后一位点亮
+ 126   5              }
+ 127   4              for(i = 3; i < 8; i++){
+ 128   5                seg_buf[i] = buf[i];
+ 129   5              }
+ 130   4            }
+ 131   3            else{
+ 132   4              seg_buf[3] = 0xff;
+ 133   4              seg_buf[4] = 0xff;
+ 134   4              seg_buf[5] = 0xff;
+ 135   4              seg_buf[6] = 0xc7;//"L"
+ 136   4              seg_buf[7] = 0xc7;//"L"
+ 137   4            }
+ 138   3          }break;
+ 139   2          
+ 140   2          case 2:{
+ 141   3            seg_buf[0] = 0x8c;//"P"
+ 142   3            seg_buf[1] = pmode?tab[2]:tab[1];
+ 143   3            seg_buf[2] = 0xff;
+ 144   3            seg_buf[3] = 0xff;
+ 145   3            if(~pmode){
+ 146   4              seg_buf[4] = tab[(u8)(p1 /1000 %10)];
+ 147   4              seg_buf[5] = tab[(u8)(p1 /100 %10)];
+ 148   4              seg_buf[6] = tab[(u8)(p1 /10 %10)];
+ 149   4              seg_buf[7] = tab[(u8)(p1 %10)];
+ 150   4            }
+ 151   3            else{
+ 152   4              seg_buf[4] = (p2 >= 0)?0xff:0xbf;//显示负号与否
+ 153   4              if(p2){
+ 154   5                seg_buf[5] = tab[(u8)(abs(p2) /100 %10)];
+ 155   5                seg_buf[6] = tab[(u8)(abs(p2) /10 %10)];
+ 156   5                seg_buf[7] = tab[(u8)(abs(p2) %10)];
+ 157   5                }
+ 158   4              else{
+ 159   5                seg_buf[5] = 0xff;
+ 160   5                seg_buf[6] = 0xff;
+ 161   5                seg_buf[7] = tab[0];
+ 162   5              }
+ 163   4            }
+ 164   3          }break;
+ 165   2          
+ 166   2          case 3:{
+ 167   3            seg_buf[0] = tab[rtc[0]/16];
+ 168   3            seg_buf[1] = tab[rtc[0]%16];
+ 169   3            seg_buf[2] = 0xbf;// "-"
+ 170   3            seg_buf[3] = tab[rtc[1]/16];
+ 171   3            seg_buf[4] = tab[rtc[1]%16];
+ 172   3            seg_buf[5] = 0xbf;// "-"
+ 173   3            seg_buf[6] = tab[rtc[2]/16];
+ 174   3            seg_buf[7] = tab[rtc[2]%16];
+ 175   3          }break;
+ 176   2          
+ 177   2          case 4:{
+ 178   3            seg_buf[0] = 0x89;//"H"
+C51 COMPILER V9.60.0.0   MAIN                                                              04/16/2024 00:34:25 PAGE 4   
+
+ 179   3            seg_buf[1] = echo?tab[10]:tab[15];
+ 180   3            if(~echo){
+ 181   4              seg_buf[2] = 0xff;
+ 182   4              buf[3] = tab[(u8)(fmax / 10000 % 10)];
+ 183   4              buf[4] = tab[(u8)(fmax / 1000 % 10)];
+ 184   4              buf[5] = tab[(u8)(fmax / 100 % 10)];
+ 185   4              buf[6] = tab[(u8)(fmax / 10 % 10)];
+ 186   4              buf[7] = tab[(u8)(fmax % 10)];
+ 187   4              i = 3;
+ 188   4              while(buf[i] == tab[0]){
+ 189   5                buf[i] = 0xff;//熄灭无效位
+ 190   5                if(++i == 7)  break;//保证最后一位点亮
+ 191   5              }
+ 192   4              for(i = 3; i < 8; i++){
+ 193   5                seg_buf[i] = buf[i];
+ 194   5              }
+ 195   4            }
+ 196   3            else{
+ 197   4            seg_buf[2] = tab[tmax[0]/16];
+ 198   4            seg_buf[3] = tab[tmax[0]%16];
+ 199   4            seg_buf[4] = tab[tmax[1]/16];
+ 200   4            seg_buf[5] = tab[tmax[1]%16];
+ 201   4            seg_buf[6] = tab[tmax[2]/16];
+ 202   4            seg_buf[7] = tab[tmax[2]%16];
+ 203   4            }
+ 204   3          }break;
+ 205   2        }
+ 206   1      }
+ 207          
+ 208          u8 led_old;
+ 209          void LED_Process()
+ 210          {
+ 211   1        u8 led = 0xff;
+ 212   1        
+ 213   1        if(mode == 1 && flash) led &= 0xfe;
+ 214   1        if(f > p1 && flash) led &= 0xfd;
+ 215   1        if(f < 0) led &= 0xfd;
+ 216   1        
+ 217   1        if(led_old != led){
+ 218   2          led_old = led;
+ 219   2          Device_Ctrl(0x80,led);
+ 220   2        }
+ 221   1      }
+ 222          
+ 223          void main()
+ 224          {
+ 225   1        Timer0_Init();
+ 226   1        Timer2_Init();
+ 227   1        DS1302_Set(rtc);
+ 228   1        Device_Init();
+ 229   1        
+ 230   1        while(1)
+ 231   1        {
+ 232   2          mInfo_Process();
+ 233   2          KBD_Process();
+ 234   2          SEG_Process();
+ 235   2          LED_Process();
+ 236   2        }
+ 237   1      }
+ 238          
+ 239          void T2ISR(void) interrupt 12
+ 240          {
+C51 COMPILER V9.60.0.0   MAIN                                                              04/16/2024 00:34:25 PAGE 5   
+
+ 241   1        SEG_Display();
+ 242   1        
+ 243   1        if(++icnt >= 200)   icnt = 0;
+ 244   1        if(++keycnt >= 10)  keycnt = 0;
+ 245   1        if(++segcnt >= 50)  segcnt = 0;
+ 246   1        
+ 247   1        if(++Timer_1000ms >= 1000){//读频率，周期
+ 248   2          Timer_1000ms = 0;
+ 249   2          TR0 = 0;
+ 250   2          freq = (TH0 << 8) | TL0;
+ 251   2          f = (long)(freq + (long)p2);
+ 252   2          TH0 = 0;
+ 253   2          TL0 = 0;
+ 254   2          TR0 = 1;
+ 255   2        }
+ 256   1        
+ 257   1        if(++Timer_200ms >= 200){
+ 258   2          Timer_200ms = 0;
+ 259   2          if((mode == 1) || (f > p1))
+ 260   2            flash = ~flash;
+ 261   2        }
+ 262   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1674    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     32      11
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      3    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

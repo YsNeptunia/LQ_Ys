@@ -1,0 +1,43 @@
+C51 COMPILER V9.60.0.0   DS18B20                                                           04/20/2024 22:47:13 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE DS18B20
+OBJECT MODULE PLACED IN .\Objects\DS18B20.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE DS18B20.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\DS18B
+                    -20.lst) TABS(2) OBJECT(.\Objects\DS18B20.obj)
+
+line level    source
+
+   1          #include "DS18B20.h"
+   2          
+   3          float Read_Temper()
+   4          {
+   5   1        u8 l,h;
+   6   1        
+   7   1        init_ds18b20();
+   8   1        Write_DS18B20(0xcc);
+   9   1        Write_DS18B20(0x44);
+  10   1        
+  11   1        init_ds18b20();
+  12   1        Write_DS18B20(0xcc);
+  13   1        Write_DS18B20(0xbe);
+  14   1        
+  15   1        l = Read_DS18B20();
+  16   1        h = Read_DS18B20();
+  17   1        
+  18   1        return (((h << 8) | l) / 16.0);
+  19   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     52    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       1
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

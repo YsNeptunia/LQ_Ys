@@ -1,0 +1,171 @@
+C51 COMPILER V9.60.0.0   MAIN                                                              04/20/2024 22:47:12 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main.lst
+                    -) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "System.h"
+   2          
+   3          //计时变量
+   4          u8 keycnt;
+   5          u8 icnt;
+   6          
+   7          //题设变量
+   8          u8 rtc[3] = {0x23,0x59,0x55};
+   9          float temper;
+  10          float AIN1,AIN3;
+  11          u8 x = 30;
+  12          u8 sx;
+  13          float dist;
+  14          
+  15          void mInfo_Process()
+  16          {
+  17   1        if(icnt)  return;
+  18   1        icnt = 1;
+  19   1      
+  20   1      //  DS1302_Read(rtc);
+  21   1        
+  22   1      //  temper = Read_Temper();
+  23   1        
+  24   1        DA_Write(255);
+  25   1        AIN3 = AD_Read(0x41) * 1.0 / 51;
+  26   1        AIN1 = AD_Read(0x43) * 1.0 / 51;
+  27   1        
+  28   1        dist = Ultra_Read();
+  29   1      }
+  30          
+  31          
+  32          void KBD_Process()
+  33          {
+  34   1        if(keycnt)  return;
+  35   1        keycnt = 1;
+  36   1      
+  37   1        KBD_Read();
+  38   1        
+  39   1        if(pres == 0x88)  x--;
+  40   1        if(pres == 0x84)  x++;
+  41   1        if(pres == 0x44){
+  42   2          EEPROM_Write(&x,0,8);
+  43   2          EEPROM_Read(&sx,0,8);
+  44   2        }
+  45   1      }
+  46          
+  47          void SEG_Process()
+  48          {
+  49   1        u8 i;
+  50   1        
+  51   1        for(i = 0;i < 4; i++){
+  52   2          seg_buf[i] = 0xff;
+  53   2        }
+  54   1        seg_buf[5] = tab[(u8)dist/100%10];
+C51 COMPILER V9.60.0.0   MAIN                                                              04/20/2024 22:47:12 PAGE 2   
+
+  55   1        seg_buf[6] = tab[(u8)dist/10%10];
+  56   1        seg_buf[7] = tab[(u8)dist%10];
+  57   1        
+  58   1      //  u8 i,j,buf[3];
+  59   1      
+  60   1      //  for(i = 4;i < 8; i++){
+  61   1      //    seg_buf[i] = 0xff;
+  62   1      //  }
+  63   1      //  buf[0] = tab[(u8)AIN3%10] & 0x7f;
+  64   1      //  buf[1] = tab[(u16)(AIN3*10)%10];
+  65   1      //  buf[2] = tab[(u16)(AIN3*100)%10];
+  66   1      //  buf[3] = tab[(u16)(AIN3*1000)%10];
+  67   1      //  
+  68   1      //  i = 3;
+  69   1      //  while(buf[i] == tab[0]){
+  70   1      //    for(j = 3; buf[j] != 0xff && j > 0; j--){
+  71   1      //      buf[j] = buf[j - 1];
+  72   1      //    }
+  73   1      //    buf[0] = 0xff;
+  74   1      //    if(i != 0)  i--;
+  75   1      //  }
+  76   1      //  for(i = 0;i < 4; i++){
+  77   1      //    seg_buf[i] = buf[i];
+  78   1      //  }
+  79   1        
+  80   1      //  seg_buf[0] = tab[(u8)(temper /10)%10];
+  81   1      //  seg_buf[1] = tab[(u8)temper %10] & 0x7f;
+  82   1      //  seg_buf[2] = tab[(u8)(temper *10) %10];
+  83   1      //  seg_buf[3] = tab[(u8)(temper *100) %10];
+  84   1      //  seg_buf[4] = tab[(u8)(temper *1000) %10];
+  85   1      //  seg_buf[5] = tab[(u8)(temper *10000) %10];
+  86   1      //  seg_buf[6] = 0xff;
+  87   1      //  seg_buf[7] = 0xff;
+  88   1        
+  89   1      //  seg_buf[0] = tab[rtc[0] / 16];
+  90   1      //  seg_buf[1] = tab[rtc[0] % 16];
+  91   1      //  seg_buf[2] = 0xbf;
+  92   1      //  seg_buf[3] = tab[rtc[1] / 16];
+  93   1      //  seg_buf[4] = tab[rtc[1] % 16];
+  94   1      //  seg_buf[5] = 0xbf;
+  95   1      //  seg_buf[6] = tab[rtc[2] / 16];
+  96   1      //  seg_buf[7] = tab[rtc[2] % 16];
+  97   1      }
+  98          
+  99          void Delay750ms(void) //@12.000MHz
+ 100          {
+ 101   1        unsigned char data i, j, k;
+ 102   1      
+ 103   1        _nop_();
+ 104   1        _nop_();
+ 105   1        i = 35;
+ 106   1        j = 51;
+ 107   1        k = 182;
+ 108   1        do
+ 109   1        {
+ 110   2          do
+ 111   2          {
+ 112   3            while (--k);
+ 113   3          } while (--j);
+ 114   2        } while (--i);
+ 115   1      }
+ 116          void main()
+C51 COMPILER V9.60.0.0   MAIN                                                              04/20/2024 22:47:12 PAGE 3   
+
+ 117          {
+ 118   1        Timer2_Init();
+ 119   1        Device_Init();
+ 120   1        Read_Temper();
+ 121   1        Delay750ms();
+ 122   1        
+ 123   1        DS1302_Set(rtc);
+ 124   1        DS1302_Read(rtc);
+ 125   1        
+ 126   1        EEPROM_Read(&sx,0,8);
+ 127   1        
+ 128   1        while(1)
+ 129   1        {
+ 130   2          mInfo_Process();
+ 131   2          
+ 132   2          KBD_Process();
+ 133   2          SEG_Process();
+ 134   2        }
+ 135   1      }
+ 136          
+ 137          void T2ISR() interrupt 12
+ 138          {
+ 139   1        SEG_Display();
+ 140   1        
+ 141   1        if(++keycnt >= 10)  keycnt = 0;
+ 142   1        if(++icnt >= 200)   icnt = 0;
+ 143   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    399    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     23    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
