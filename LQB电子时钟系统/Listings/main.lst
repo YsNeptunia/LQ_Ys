@@ -1,0 +1,476 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              02/02/2024 16:59:45 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main.lst) TA
+                    -BS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "System.h"
+   2          
+   3          u8 cnt;//按键消抖变量
+   4          u8 ecnt;//控制闪光变量
+   5          u8 mode = 1;//主模式选择,123为普通显示，456为设置显示
+   6          
+   7          u8 time[3] = {0x23,0x59,0x55};//当前时钟，BCD码
+   8          u8 date[3] = {0x22,0x12,0x12};//当前日期
+   9          u8 alarm[3][3] = 
+  10          {
+  11            {0x00,0x00,0x00},
+  12            {0x00,0x01,0x00},
+  13            {0xbf,0xbf,0xbf}
+  14          };//闹钟
+  15          u8 al_num = 0;//闹钟选择编号，第一个下标
+  16          u8 al_ring = 3;//闹钟响铃编号，响铃时变化，3为空
+  17          bit al_flag = 1;//闹钟使能标志
+  18          bit ringing;//响铃状态标志
+  19          bit al_flash;//响铃闪烁标志
+  20          u8 al_count;//响铃计数，超时自动关闭响铃
+  21          u8 edit_index = 3;//012:待修改下标 3：非修改状态
+  22          bit edit_flash = 0;//修改使能标志，使数码管0.5s闪
+  23          bit eflag;//设置长按标志
+  24          u8 temp[3];//存储时间临时变量
+  25          
+  26          //struct uart{//串口数据结构体
+  27          //  u8 dat[25];//字符串数据
+  28          //  u8 i;//数组下标指针
+  29          //};
+  30          //struct uart recv;//接收字符串
+  31          //struct uart send;//发送字符串
+  32          
+  33          bit mAlarm_Exist(void)//判断闹钟是否存在函数
+  34          {
+  35   1        if(alarm[al_num][0] == 0xbf)  return 0;
+  36   1        else  return 1;
+  37   1      }
+  38          
+  39          void mAlarm_Clear(void)//清除当前闹钟函数
+  40          {
+  41   1        u8 i;
+  42   1        for(i = 0; i < 3; i++){
+  43   2          alarm[al_num][i] = 0xbf;
+  44   2        }
+  45   1      }
+  46          
+  47          void mTime_IncDec(u8* t, u8 i,bit ope)//时间增减函数
+  48          {//形参为待操作的时间数组、操作下标和待操作数正负
+  49   1        u8 x,max;//即将加减的数,对应上限
+  50   1        x = BCDtoDEC(t[i]);
+  51   1        
+  52   1        //上限判断，小时的上限为23，时分的上限为59，下限均为00
+  53   1        if(i == 0)  max = 0x23;
+  54   1        else max = 0x59;
+C51 COMPILER V9.56.0.0   MAIN                                                              02/02/2024 16:59:45 PAGE 2   
+
+  55   1        
+  56   1        if(~ope){
+  57   2          if(t[i] == max) t[i] = 0x00;
+  58   2          else{
+  59   3            x++;
+  60   3            t[i] = DECtoBCD(x);
+  61   3          }
+  62   2        }
+  63   1        else{
+  64   2          if(t[i] == 0x00)  t[i] = max;
+  65   2          else{
+  66   3            x--;
+  67   3            t[i] = DECtoBCD(x);
+  68   3          }
+  69   2        }
+  70   1      }
+  71          
+  72          void mDate_IncDec(u8* d, u8 i, bit ope)//日期增减函数
+  73          {
+  74   1        u8 x,max,min;//待加减的时间参数，对应上限，下限
+  75   1        u16 year;
+  76   1        x = BCDtoDEC(d[i]);
+  77   1        year = BCDtoDEC(d[0]) + 2000;//年份，便于判断是否为闰年
+  78   1        
+  79   1        switch(i){//日期上下限判断
+  80   2          case 0: max = 0x99;min = 0x00;break;
+  81   2          case 1: max = 0x12;min = 0x01;break;
+  82   2          case 2:{
+  83   3            if(d[1] == 0x02){
+  84   4              if((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0))//闰年条件：能被4整除但是不能被100整除 或者
+             - 能被400整除
+  85   4                max = 0x29;
+  86   4              else  max = 0x28;
+  87   4            }
+  88   3            else if(d[1] == 4 || d[1] == 6 || d[1] == 9 || d[1] == 11)//小月
+  89   3              max = 0x30;
+  90   3            else
+  91   3              max = 0x31;
+  92   3            min = 0x01;
+  93   3          }break;
+  94   2        }
+  95   1        
+  96   1        
+  97   1        if(~ope){//日期加减
+  98   2          if(d[i] == max) d[i] = min;
+  99   2          else{
+ 100   3            x++;
+ 101   3            d[i] = DECtoBCD(x);
+ 102   3          }
+ 103   2        }
+ 104   1        else{
+ 105   2          if(d[i] == min) d[i] = max;
+ 106   2          else{
+ 107   3            x--;
+ 108   3            d[i] = DECtoBCD(x);
+ 109   3          }
+ 110   2        }
+ 111   1      }
+ 112          
+ 113          
+ 114          void KBD_Process()//矩阵键盘处理函数
+ 115          {
+C51 COMPILER V9.56.0.0   MAIN                                                              02/02/2024 16:59:45 PAGE 3   
+
+ 116   1        static bit mflag;//模式选择标志
+ 117   1        static u8 pcnt,ecnt;//长按计时,设置长按计时
+ 118   1        
+ 119   1        if(cnt >= 10){//按键消抖处理，操作函数写在大括号内
+ 120   2          KBD_Read();
+ 121   2          cnt = 0;
+ 122   2          
+ 123   2          if(trg == 0x18 && edit_index == 3)//S16抬手长按判断
+ 124   2            mflag = 1;
+ 125   2          if(mflag && cont == 0x00){//S16主模式选择，抬手切换
+ 126   3            mflag = 0;
+ 127   3            pcnt = 0;
+ 128   3            mode++;
+ 129   3            if(mode >= 4) mode = 1;
+ 130   3            if(mode == 3) al_num = 0;
+ 131   3          }
+ 132   2          if(mflag && cont == 0x18){//S16闹钟使能，长按切换
+ 133   3            pcnt++;
+ 134   3            if(pcnt >= 100){//长按1s进入
+ 135   4              mflag = 0;
+ 136   4              pcnt = 0;
+ 137   4              al_flag = ~al_flag;
+ 138   4            }
+ 139   3          }
+ 140   2          
+ 141   2          if(trg == 0x14 && mode == 3){//S17闹钟编号切换
+ 142   3            al_num++;
+ 143   3            al_num %= 3;
+ 144   3          }
+ 145   2          
+ 146   2          if(cont == 0x24 && mode == 3 && edit_index == 3){//S13闹钟清除按键
+ 147   3            pcnt++;
+ 148   3            if(pcnt >= 100){
+ 149   4              pcnt = 0;
+ 150   4              mAlarm_Clear();
+ 151   4            }
+ 152   3          }
+ 153   2          
+ 154   2          if(trg == 0x28){//S12进入修改菜单
+ 155   3            u8 i;
+ 156   3            bit tempflag;
+ 157   3            if(edit_index >= 2){
+ 158   4              if(mode <= 3){
+ 159   5                mode += 3;//将模式切换入对应设置模式
+ 160   5                tempflag = al_flag;//临时储存闹钟使能模式
+ 161   5                al_flag = 0;//防止进入闹钟响铃
+ 162   5                if(mode == 4){//时间设置
+ 163   6                  for(i = 0; i<3; i++)
+ 164   6                    temp[i] = time[i];
+ 165   6                }
+ 166   5                else if(mode == 5){//日期设置
+ 167   6                  for(i = 0; i<3; i++)
+ 168   6                    temp[i] = date[i];
+ 169   6                }
+ 170   5                else{
+ 171   6                  if(mAlarm_Exist()){
+ 172   7                    for(i = 0; i<3; i++)
+ 173   7                      temp[i] = alarm[al_num][i];//已有闹钟
+ 174   7                  }
+ 175   6                  else{
+ 176   7                    for(i = 0; i<3; i++)
+ 177   7                      temp[i] = 0x00;//新闹钟，从0修改
+C51 COMPILER V9.56.0.0   MAIN                                                              02/02/2024 16:59:45 PAGE 4   
+
+ 178   7                  }
+ 179   6                }
+ 180   5                edit_index = 0;
+ 181   5              }
+ 182   4              else{
+ 183   5                mode -= 3;
+ 184   5                if(mode == 1)
+ 185   5                  DS1302_Set(temp,date);
+ 186   5                else if(mode == 2)
+ 187   5                  DS1302_Set(time,temp);
+ 188   5                else{
+ 189   6                  for(i = 0; i<3; i++)
+ 190   6                    alarm[al_num][i] = temp[i];
+ 191   6                }
+ 192   5                al_flag = tempflag;//闹钟使能模式恢复为设置前的
+ 193   5                edit_index = 3;
+ 194   5              }
+ 195   4            }
+ 196   3            else
+ 197   3              edit_index++;
+ 198   3          }
+ 199   2      
+ 200   2          if((cont == 0x81 || cont == 0x88) && edit_index != 3){//长按快速加减，在下面的函数每0.1s触发一次加减
+ 201   3            pcnt++;
+ 202   3            ecnt++;
+ 203   3            if(pcnt >= 150){//1.5s进入
+ 204   4              eflag = 1;
+ 205   4              pcnt = 0;
+ 206   4            }
+ 207   3          }
+ 208   2          if(((trg == 0x81 || trg == 0x88) && edit_index != 3) || (eflag && ecnt >= 10)){//S6设置加,S5设置减
+ 209   3            bit flag;//增减判断
+ 210   3            if(cont == 0x88)  flag = 1;
+ 211   3            else  flag = 0;
+ 212   3            if(mode == 4)
+ 213   3              mTime_IncDec(temp,edit_index,flag);
+ 214   3            else if(mode == 5)
+ 215   3              mDate_IncDec(temp,edit_index,flag);
+ 216   3            else{
+ 217   4              mTime_IncDec(temp,edit_index,flag); 
+ 218   4            }
+ 219   3            ecnt = 0;
+ 220   3          }
+ 221   2          
+ 222   2          if(ringing == 1 && cont != 0x00){//任意键关闭闹钟
+ 223   3            ringing = 0;
+ 224   3            al_count = 0;
+ 225   3            al_ring = 3;
+ 226   3            Device_Ctrl(0xa0,0x00);
+ 227   3          }
+ 228   2          
+ 229   2          if(cont == 0x00){//松手长按计数清零
+ 230   3            pcnt = 0;
+ 231   3            ecnt = 0;
+ 232   3            eflag = 0;
+ 233   3          }
+ 234   2          
+ 235   2        }
+ 236   1      }
+ 237          
+ 238          void SEG_Process()//数码管处理函数
+ 239          {
+C51 COMPILER V9.56.0.0   MAIN                                                              02/02/2024 16:59:45 PAGE 5   
+
+ 240   1        seg_buf[2] = 0xbf;//"-"
+ 241   1        seg_buf[5] = 0xbf;
+ 242   1        
+ 243   1        switch(mode){
+ 244   2          case 1:{//显示当前时间
+ 245   3          seg_buf[0] = tab[time[0] / 16];
+ 246   3          seg_buf[1] = tab[time[0] % 16];
+ 247   3          seg_buf[3] = tab[time[1] / 16];
+ 248   3          seg_buf[4] = tab[time[1] % 16];
+ 249   3          seg_buf[6] = tab[time[2] / 16];
+ 250   3          seg_buf[7] = tab[time[2] % 16];
+ 251   3          }break;
+ 252   2          
+ 253   2          case 2:{//显示当前日期
+ 254   3          seg_buf[0] = tab[date[0] / 16];
+ 255   3          seg_buf[1] = tab[date[0] % 16];
+ 256   3          seg_buf[3] = tab[date[1] / 16];
+ 257   3          seg_buf[4] = tab[date[1] % 16];
+ 258   3          seg_buf[6] = tab[date[2] / 16];
+ 259   3          seg_buf[7] = tab[date[2] % 16];   
+ 260   3          }break;
+ 261   2          
+ 262   2          case 3:{//显示闹钟
+ 263   3          if(mAlarm_Exist()){
+ 264   4            seg_buf[0] = tab[alarm[al_num][0] / 16];
+ 265   4            seg_buf[1] = tab[alarm[al_num][0] % 16];
+ 266   4            seg_buf[3] = tab[alarm[al_num][1] / 16];
+ 267   4            seg_buf[4] = tab[alarm[al_num][1] % 16];
+ 268   4            seg_buf[6] = tab[alarm[al_num][2] / 16];
+ 269   4            seg_buf[7] = tab[alarm[al_num][2] % 16];
+ 270   4          }
+ 271   3          else{
+ 272   4            seg_buf[0] = alarm[al_num][0];
+ 273   4            seg_buf[1] = alarm[al_num][0];
+ 274   4            seg_buf[3] = alarm[al_num][0];
+ 275   4            seg_buf[4] = alarm[al_num][0];
+ 276   4            seg_buf[6] = alarm[al_num][0];
+ 277   4            seg_buf[7] = alarm[al_num][0];          
+ 278   4          }
+ 279   3          }break;
+ 280   2          
+ 281   2          default:{//编辑模式
+ 282   3            u8 lbit = edit_index * 3;
+ 283   3            u8 lbit1 = (lbit+3)%9;
+ 284   3            u8 lbit2 = (lbit+6)%9;
+ 285   3            u8 edit_index1 = (edit_index+1)%3;
+ 286   3            u8 edit_index2 = (edit_index+2)%3;
+ 287   3            if(edit_flash || eflag){//待编辑位闪烁(为长按状态下不闪烁)
+ 288   4              seg_buf[lbit] = tab[temp[edit_index] / 16];
+ 289   4              seg_buf[lbit + 1] = tab[temp[edit_index] % 16];
+ 290   4            }
+ 291   3            else{//熄灭
+ 292   4              seg_buf[lbit] = 0xff;
+ 293   4              seg_buf[lbit + 1] = 0xff;
+ 294   4            }
+ 295   3            seg_buf[lbit1] = tab[temp[edit_index1] / 16];//其他位正常显示
+ 296   3            seg_buf[lbit1+1] = tab[temp[edit_index1] % 16];
+ 297   3            seg_buf[lbit2] = tab[temp[edit_index2] / 16];
+ 298   3            seg_buf[lbit2+1] = tab[temp[edit_index2] % 16];
+ 299   3          }break;
+ 300   2        }
+ 301   1      }
+C51 COMPILER V9.56.0.0   MAIN                                                              02/02/2024 16:59:45 PAGE 6   
+
+ 302          
+ 303          void LED_Process()//LED处理函数
+ 304          {
+ 305   1        u8 led;
+ 306   1        switch(mode){//模式切换L1~L3
+ 307   2          case 1:led = 0xfe;break;
+ 308   2          case 2:led = 0xfd;break;
+ 309   2          case 3:led = 0xfb;break;
+ 310   2          case 4:led = 0xfe;break;
+ 311   2          case 5:led = 0xfd;break;
+ 312   2          case 6:led = 0xfb;break;
+ 313   2        }
+ 314   1        if(mode == 3 || mode == 6){
+ 315   2          switch(al_num){//闹钟选择切换L4~L6
+ 316   3            case 0:led &= 0xf7;break;
+ 317   3            case 1:led &= 0xef;break;
+ 318   3            case 2:led &= 0xdf;break;
+ 319   3          }
+ 320   2        }
+ 321   1        if(al_flag) led &= 0xbf;//闹钟使能标志L7
+ 322   1        if(edit_index != 3 && edit_flash) led &= 0x7f;//设置模式L8
+ 323   1        
+ 324   1        if(ringing){
+ 325   2          if(mode == 3){//处于闹钟模式时
+ 326   3            switch(al_ring){//先熄灭对应闹钟
+ 327   4              case 0:led |= 0x08;break;
+ 328   4              case 1:led |= 0x10;break;
+ 329   4              case 2:led |= 0x20;break;
+ 330   4            } 
+ 331   3          } 
+ 332   2        }
+ 333   1        if(al_flash){
+ 334   2          switch(al_ring){//响铃对应闹钟闪烁
+ 335   3            case 0:led &= 0xf7;break;
+ 336   3            case 1:led &= 0xef;break;
+ 337   3            case 2:led &= 0xdf;break;
+ 338   3          }
+ 339   2        }
+ 340   1        
+ 341   1        Device_Ctrl(0x80,led);
+ 342   1      }
+ 343          
+ 344          void BEEP_Process()//闹钟进程函数
+ 345          {
+ 346   1        u8 i;
+ 347   1        static bit flag;//标志位
+ 348   1        if(~ringing){
+ 349   2          for(i = 0; i < 3; i++){
+ 350   3            if(alarm[i][2] == time[2] && alarm[i][1] == time[1] && alarm[i][0] == time[0]){
+ 351   4                ringing = 1;
+ 352   4                flag = 1;
+ 353   4                al_ring = i;
+ 354   4                break;
+ 355   4              }
+ 356   3          }
+ 357   2        }
+ 358   1        
+ 359   1        
+ 360   1        if(ringing){
+ 361   2          if(al_flash && flag){
+ 362   3            Device_Ctrl(0xa0,0x40);
+ 363   3            flag = ~flag;
+C51 COMPILER V9.56.0.0   MAIN                                                              02/02/2024 16:59:45 PAGE 7   
+
+ 364   3            al_count++;
+ 365   3          }
+ 366   2          else if(~al_flash && ~flag){
+ 367   3            Device_Ctrl(0xa0,0x00);
+ 368   3            flag = ~flag;
+ 369   3          }
+ 370   2        }
+ 371   1        if(al_count > 20){//响铃十秒后自动结束
+ 372   2          Device_Ctrl(0xa0,0x00);
+ 373   2          al_ring = 3;
+ 374   2          ringing = 0;
+ 375   2          flag = 0;
+ 376   2          al_count = 0;
+ 377   2        }
+ 378   1      }
+ 379          
+ 380          void main()
+ 381          {
+ 382   1        Timer0_Init();
+ 383   1        Uart1Init();
+ 384   1        Device_Init();
+ 385   1        DS1302_Set(time,date);
+ 386   1        Uart_Send("程序初始化成功！");
+ 387   1        
+ 388   1        while(1)
+ 389   1        {
+ 390   2          KBD_Process();
+ 391   2          SEG_Process();
+ 392   2          LED_Process();
+ 393   2          if(al_flag && edit_index == 3)
+ 394   2            BEEP_Process();
+ 395   2        }
+ 396   1      }
+ 397          
+ 398          void T0ISR(void) interrupt 1
+ 399          {
+ 400   1        static u8 rcnt,acnt;//读取时间计数，每0.1s一读;闹钟频响计数
+ 401   1        SEG_Display();
+ 402   1        cnt++;
+ 403   1        if(cnt>=10){
+ 404   2          rcnt++;
+ 405   2          if(rcnt >= 10){
+ 406   3            DS1302_Read(time,date);//读取实时时间
+ 407   3            rcnt = 0;
+ 408   3          }
+ 409   2          if(ringing){
+ 410   3            acnt++;
+ 411   3            if(acnt<=10)  al_flash = 1;
+ 412   3            else if(acnt <= 20) al_flash = 0;
+ 413   3            else if(acnt <= 30) al_flash = 1;
+ 414   3            else if(acnt <= 40) al_flash = 0;
+ 415   3            if(acnt >= 100){
+ 416   4              al_flash = 0;
+ 417   4              acnt = 0;
+ 418   4            }
+ 419   3          }
+ 420   2          if(edit_index != 3){
+ 421   3            ecnt++;
+ 422   3            if(ecnt >= 30){
+ 423   4              edit_flash = ~edit_flash;
+ 424   4              ecnt = 0;
+ 425   4            }
+C51 COMPILER V9.56.0.0   MAIN                                                              02/02/2024 16:59:45 PAGE 8   
+
+ 426   3          }
+ 427   2        }
+ 428   1      }
+ 429          
+ 430          void U1ISR(void) interrupt 4
+ 431          {
+ 432   1      //  if(RI == 1){//串口接收数据
+ 433   1      //    recv.dat[recv.i++] = SBUF;
+ 434   1      //    RI = 0;
+ 435   1      //  }
+ 436   1      }
+ 437          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1994    ----
+   CONSTANT SIZE    =     17    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     29      20
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      7       3
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
