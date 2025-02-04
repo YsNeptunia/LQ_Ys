@@ -1,0 +1,12 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\Device.obj",
+".\Objects\Timer.obj",
+".\Objects\iic.obj",
+".\Objects\SEG.obj",
+".\Objects\BTN.obj",
+".\Objects\DS1302.obj",
+".\Objects\ADC.obj",
+".\Objects\EEPROM.obj" 
+TO ".\Objects\LQ-Ys" 
+PRINT(".\Listings\LQ-Ys.m51") RAMSIZE(256) 

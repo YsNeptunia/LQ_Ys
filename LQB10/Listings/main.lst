@@ -1,0 +1,175 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              02/08/2024 17:10:24 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main.lst) TA
+                    -BS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "System.h"
+   2          
+   3          //计时变量
+   4          u8 btn_cnt,seg_cnt,led_cnt,icnt;//减速变量
+   5          u16 Timer_500Ms;//测量频率用周期
+   6          
+   7          //题设变量
+   8          u16 freq;//频率
+   9          float v;//读取电压
+  10          float vout = 2.0;//输出电压
+  11          bit mode = 1;//数码管显示模式，0频率，1电压
+  12          bit vmode;//电压输出模式，1为读取电压，0为2v
+  13          bit ledmode = 1;//led显示模式，为1时启用led指示灯
+  14          bit segmode = 1;//数码管显示模式。同上
+  15          
+  16          
+  17          void mInfo_Process()
+  18          {
+  19   1        if(icnt)  return;
+  20   1        icnt = 1;
+  21   1        
+  22   1        v = AD_Read(0x43) * (5.0 / 255);//读Rb2的电压值
+  23   1        if(vmode) vout = v;
+  24   1        DA_Write(vout);
+  25   1      }
+  26          
+  27          
+  28          void BTN_Process()
+  29          {
+  30   1        if(btn_cnt) return;
+  31   1        btn_cnt = 1;
+  32   1        
+  33   1        BTN_Read();
+  34   1        
+  35   1        if(pres == 0x08){//S4：定义为“显示界面切换”按键
+  36   2          mode = ~mode;
+  37   2          return;
+  38   2        }
+  39   1        
+  40   1        if(pres == 0x04){//S5：定义为 PCF8591 DAC“输出模式切换”按键
+  41   2          if(~vmode){
+  42   3            vmode = 1;
+  43   3            return;
+  44   3          }
+  45   2          else{
+  46   3            vmode = 0;
+  47   3            vout = 2.0;
+  48   3            return;
+  49   3          }
+  50   2        }
+  51   1        
+  52   1        if(pres == 0x02){//S6：定义为“LED 指示灯功能控制”按键
+  53   2          ledmode = ~ledmode;
+  54   2        }
+C51 COMPILER V9.56.0.0   MAIN                                                              02/08/2024 17:10:24 PAGE 2   
+
+  55   1        
+  56   1        if(pres == 0x01){//S7：定义为“数码管显示功能控制”按键
+  57   2          segmode = ~segmode;
+  58   2        }
+  59   1      }
+  60          
+  61          void SEG_Process()
+  62          {
+  63   1        if(seg_cnt) return;
+  64   1        seg_cnt = 1;
+  65   1        
+  66   1        if(mode){//电压显示
+  67   2          seg_buf[0] = 0xc1;//"U"
+  68   2          seg_buf[1] = 0xff;
+  69   2          seg_buf[2] = 0xff;
+  70   2          seg_buf[3] = 0xff;
+  71   2          seg_buf[4] = 0xff;
+  72   2          seg_buf[5] = tab[(u8)v %10] & 0x7f;//小数点
+  73   2          seg_buf[6] = tab[(u8)(v *10) %10];
+  74   2          seg_buf[7] = tab[(u8)(v *100) %10];
+  75   2        }
+  76   1        else{//频率显示
+  77   2          seg_buf[0] = tab[15];//"F"
+  78   2          seg_buf[1] = 0xff;
+  79   2          seg_buf[2] = (freq / 100000)?tab[(u8)(freq / 100000)%10]:0xff;//存在则显示，否则熄灭
+  80   2          seg_buf[3] = (freq / 10000)?tab[(u8)(freq / 10000)%10]:0xff;
+  81   2          seg_buf[4] = (freq / 1000)?tab[(u8)(freq / 1000)%10]:0xff;
+  82   2          seg_buf[5] = (freq / 100)?tab[(u8)(freq / 100)%10]:0xff;
+  83   2          seg_buf[6] = (freq / 10)?tab[(u8)(freq / 10)%10]:0xff;
+  84   2          seg_buf[7] = freq?tab[(u8)freq%10]:0xff;
+  85   2        }
+  86   1      }
+  87          
+  88          void LED_Process()
+  89          {
+  90   1        u8 led = 0xff;
+  91   1        
+  92   1        if(led_cnt) return;
+  93   1        led_cnt = 1;
+  94   1        
+  95   1        if(ledmode){
+  96   2          if(mode)  led = 0xfd;
+  97   2          else  led = 0xfe;
+  98   2          
+  99   2          if((vout >= 1.5 && vout < 2.5) || vout > 3.5)
+ 100   2            led &= 0xfb;
+ 101   2          
+ 102   2          if((freq >= 1000 && freq < 5000) || freq >= 10000)
+ 103   2            led &= 0xf7;
+ 104   2          
+ 105   2          if(vmode)
+ 106   2            led &= 0xef;
+ 107   2        }
+ 108   1        
+ 109   1        Device_Ctrl(0x80,led);
+ 110   1      }
+ 111          
+ 112          void main()
+ 113          {
+ 114   1        Timer0_Init();
+ 115   1        Timer1_Init();
+ 116   1        Device_Init();
+C51 COMPILER V9.56.0.0   MAIN                                                              02/08/2024 17:10:24 PAGE 3   
+
+ 117   1        
+ 118   1        while(1)
+ 119   1        {
+ 120   2          mInfo_Process();
+ 121   2          BTN_Process();
+ 122   2          SEG_Process();
+ 123   2          LED_Process();
+ 124   2        }
+ 125   1      }
+ 126          
+ 127          void T1ISR() interrupt 3
+ 128          {
+ 129   1        if(segmode)
+ 130   1          SEG_Display();
+ 131   1        else
+ 132   1          Device_Ctrl(0xc0,0x00);
+ 133   1        
+ 134   1        if(++btn_cnt >= 10)   btn_cnt = 0;
+ 135   1        if(++seg_cnt >= 200)  seg_cnt = 0;
+ 136   1        if(++led_cnt >= 10)   led_cnt = 0;
+ 137   1        if(++icnt >= 100)     icnt = 0;
+ 138   1        
+ 139   1        if(++Timer_500Ms >= 500){//0.5S
+ 140   2          Timer_500Ms = 0;
+ 141   2          freq = (TH0 << 8) | TL0;
+ 142   2          TL0 = 0;        //设置定时初始值
+ 143   2          TH0 = 0;        //设置定时初始值
+ 144   2          freq *= 2;
+ 145   2        }
+ 146   1        
+ 147   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    784    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     16       1
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      4    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

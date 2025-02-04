@@ -1,0 +1,10 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\Timer.obj",
+".\Objects\iic.obj",
+".\Objects\Device.obj",
+".\Objects\BTN.obj",
+".\Objects\SEG.obj",
+".\Objects\ADDA.obj" 
+TO ".\Objects\LQ_Ys" 
+PRINT(".\Listings\LQ_Ys.m51") RAMSIZE(256) 
