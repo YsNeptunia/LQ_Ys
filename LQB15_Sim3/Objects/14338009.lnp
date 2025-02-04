@@ -1,0 +1,11 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\Timer.obj",
+".\Objects\Device.obj",
+".\Objects\iic.obj",
+".\Objects\KBD.obj",
+".\Objects\SEG.obj",
+".\Objects\ADDA.obj",
+".\Objects\USonic.obj" 
+TO ".\Objects\14338009" 
+PRINT(".\Listings\14338009.m51") RAMSIZE(256) 

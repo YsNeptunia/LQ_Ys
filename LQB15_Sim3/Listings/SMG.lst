@@ -1,0 +1,24 @@
+C51 COMPILER V9.56.0.0   SMG                                                               03/10/2024 13:13:13 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE SMG
+OBJECT MODULE PLACED IN .\Objects\SMG.obj
+COMPILER INVOKED BY: D:\C51\BIN\C51.EXE SMG.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\SMG.lst) TABS
+                    -(2) OBJECT(.\Objects\SMG.obj)
+
+line level    source
+
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   ----    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

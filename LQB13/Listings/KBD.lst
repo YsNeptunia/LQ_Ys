@@ -1,0 +1,54 @@
+C51 COMPILER V9.56.0.0   KBD                                                               03/03/2024 20:22:33 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE KBD
+OBJECT MODULE PLACED IN .\Objects\KBD.obj
+COMPILER INVOKED BY: D:\C51\BIN\C51.EXE KBD.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\KBD.lst) TABS
+                    -(2) OBJECT(.\Objects\KBD.obj)
+
+line level    source
+
+   1          #include "KBD.h"
+   2          
+   3          u8 KBD_IO()
+   4          {
+   5   1        u8 io = 0xff;
+   6   1        
+   7   1        P34 = 1;P35 = 1;P42 = 1;P44 = 1;
+   8   1        P30 = 0;P31 = 0;P32 = 0;P33 = 0;
+   9   1        if(P44 == 0)  io = 0x70;
+  10   1        if(P42 == 0)  io = 0xb0;
+  11   1        if(P35 == 0)  io = 0xd0;
+  12   1        if(P34 == 0)  io = 0xe0;
+  13   1        
+  14   1        P30 = 1;P31 = 1;P32 = 1;P33 = 1;
+  15   1        P34 = 0;P35 = 0;P42 = 0;P44 = 0;
+  16   1        if(P33 == 0)  io |= 0x07;
+  17   1        if(P32 == 0)  io |= 0x0b;
+  18   1        if(P31 == 0)  io |= 0x0d;
+  19   1        if(P30 == 0)  io |= 0x0e;
+  20   1        
+  21   1        return io;
+  22   1      }
+  23          
+  24          u8 pres,cont;
+  25          void KBD_Read()
+  26          {
+  27   1        u8 state = KBD_IO() ^ 0xff;
+  28   1        pres = state & (state ^ cont);
+  29   1        cont = state;
+  30   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     93    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      2    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
