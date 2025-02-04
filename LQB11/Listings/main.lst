@@ -1,0 +1,224 @@
+C51 COMPILER V9.60.0.0   MAIN                                                              03/16/2024 14:33:30 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main.lst
+                    -) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "System.h"
+   2          
+   3          //定时变量
+   4          u8 icnt;
+   5          u8 keycnt,segcnt,ledcnt;
+   6          u16 time5s = 0;//5s计时变量
+   7          bit flag5s = 0;//5s标志位
+   8          
+   9          //题设变量
+  10          u8 mode = 1;//主模式切换。1) 数据界面2) 参数界面3) 计数界面
+  11          float vin;//AIN3 通道上获取的电压信号
+  12          float vp;//电压参数，从E2PROM读取
+  13          u8 vtemp;//临时存储字符串
+  14          bit vflag = 1;//电压计数加一标志位，用后清除
+  15          u32 Ncnt = 0;//计数值(0~9999999)
+  16          u8 nkey;//无效按键计数
+  17          
+  18          
+  19          void mInfo_Process()
+  20          {
+  21   1      
+  22   1        if(icnt)  return;
+  23   1        icnt = 1;
+  24   1      
+  25   1        vin = AD_Read(0x43) * (5.00 / 255);
+  26   1        
+  27   1        if(vflag && vp >= vin){
+  28   2          vflag = 0;
+  29   2          if(Ncnt != 9999999)
+  30   2            Ncnt++;
+  31   2        }
+  32   1        else if(vp < vin)
+  33   1          vflag = 1;
+  34   1      }
+  35          
+  36          
+  37          void KBD_Process()
+  38          {
+  39   1        if(keycnt)  return;
+  40   1        keycnt = 1;
+  41   1      
+  42   1        KBD_Read();
+  43   1        
+  44   1        if(pres == 0x28){//S12：定义为“显示界面切换”按键
+  45   2          nkey = 0;
+  46   2          
+  47   2          if(mode == 2){
+  48   3            vtemp = (u8)(vp * 10);
+  49   3            EEPROM_Write(&vtemp,0,8);
+  50   3          }
+  51   2          
+  52   2          if(mode == 3) mode = 1;
+  53   2          else  mode++;
+  54   2          return;
+C51 COMPILER V9.60.0.0   MAIN                                                              03/16/2024 14:33:30 PAGE 2   
+
+  55   2        }
+  56   1        else if(mode == 3 && pres == 0x24){//S13：定义为“清零”按键
+  57   2          nkey = 0;
+  58   2          Ncnt = 0;
+  59   2          return;
+  60   2        }
+  61   1        else if(mode == 2 && pres == 0x18){
+  62   2          nkey = 0;
+  63   2          if(vp != 5.0) vp += 0.5;
+  64   2          else  vp = 0.0;
+  65   2          return;
+  66   2        }
+  67   1        else if(mode == 2 && pres == 0x14){
+  68   2          nkey = 0;
+  69   2          if(vp != 0.0) vp -= 0.5;
+  70   2          else  vp = 5.0;
+  71   2          return;
+  72   2        }
+  73   1        else{
+  74   2          if(pres != 0x00)
+  75   2            nkey++;
+  76   2        }
+  77   1      }
+  78          
+  79          void SEG_Process()
+  80          {
+  81   1        u8 i = 1;
+  82   1        u8 buf[8];//mode3专用缓存
+  83   1        
+  84   1        if(segcnt)  return;
+  85   1        segcnt = 1;
+  86   1      
+  87   1        if(mode == 1 || mode == 2){
+  88   2          seg_buf[1] = 0xff;
+  89   2          seg_buf[2] = 0xff;
+  90   2          seg_buf[3] = 0xff;
+  91   2          seg_buf[4] = 0xff;
+  92   2        }
+  93   1        switch(mode){
+  94   2          case 1:{
+  95   3            seg_buf[0] = 0xc1;//"U"
+  96   3            seg_buf[5] = tab[(u8)vin%10] & 0x7f;
+  97   3            seg_buf[6] = tab[(u16)(vin*10)%10];
+  98   3            seg_buf[7] = tab[(u16)(vin*100)%10];
+  99   3          };break;
+ 100   2          
+ 101   2          case 2:{
+ 102   3            seg_buf[0] = 0x8c;//"P"
+ 103   3            seg_buf[5] = tab[(u8)vp %10] & 0x7f;
+ 104   3            seg_buf[6] = tab[(u16)(vp*10)%10];
+ 105   3            seg_buf[7] = tab[(u16)(vp*100)%10];
+ 106   3          };break;
+ 107   2          
+ 108   2          case 3:{
+ 109   3            seg_buf[0] = 0xc8;//"N"
+ 110   3            
+ 111   3            buf[1] = tab[(Ncnt/1000000)%10];
+ 112   3            buf[2] = tab[(Ncnt/100000)%10];
+ 113   3            buf[3] = tab[(Ncnt/10000)%10];
+ 114   3            buf[4] = tab[(Ncnt/1000)%10];
+ 115   3            buf[5] = tab[(Ncnt/100)%10];
+ 116   3            buf[6] = tab[(Ncnt/10)%10];
+C51 COMPILER V9.60.0.0   MAIN                                                              03/16/2024 14:33:30 PAGE 3   
+
+ 117   3            buf[7] = tab[Ncnt%10];
+ 118   3            
+ 119   3            while(buf[i] == tab[0]){
+ 120   4              buf[i] = 0xff;//熄灭高位
+ 121   4              if(++i == 7)  break;//保证最低位点亮
+ 122   4            }
+ 123   3            
+ 124   3            for(i = 1; i < 8; i++){
+ 125   4              seg_buf[i] = buf[i];//将显示缓存送入数码管
+ 126   4            }
+ 127   3          };break;
+ 128   2        }
+ 129   1      }
+ 130          
+ 131          void LED_Process()
+ 132          {
+ 133   1        static u8 led_old;
+ 134   1        u8 led = 0xff;
+ 135   1        
+ 136   1        if(ledcnt)  return;
+ 137   1        ledcnt = 1;
+ 138   1      
+ 139   1        if(flag5s)
+ 140   1          led &= 0xfe;
+ 141   1        
+ 142   1        if(Ncnt % 2)
+ 143   1          led &= 0xfd;
+ 144   1        
+ 145   1        if(nkey >= 3)
+ 146   1          led &= 0xfb;
+ 147   1        
+ 148   1        if(led != led_old){
+ 149   2          led_old = led;
+ 150   2          Device_Ctrl(0x80,led);
+ 151   2        }
+ 152   1      }
+ 153          
+ 154          
+ 155          
+ 156          void main()
+ 157          {
+ 158   1        Timer2_Init();
+ 159   1        Device_Init();
+ 160   1        AD_Read(0x43);
+ 161   1        EEPROM_Read(&vtemp,0,8);
+ 162   1        vp = vtemp * 0.1;
+ 163   1        
+ 164   1        while(1)
+ 165   1        {
+ 166   2          mInfo_Process();
+ 167   2          
+ 168   2          KBD_Process();
+ 169   2          SEG_Process();
+ 170   2          LED_Process();
+ 171   2        }
+ 172   1      }
+ 173          
+ 174          void T2ISR() interrupt 12
+ 175          {
+ 176   1        SEG_Display();
+ 177   1        
+ 178   1        if(++icnt >= 10)    icnt = 0;
+C51 COMPILER V9.60.0.0   MAIN                                                              03/16/2024 14:33:30 PAGE 4   
+
+ 179   1        if(++keycnt >= 10)  keycnt = 0;
+ 180   1        if(++segcnt >= 150) segcnt = 0;
+ 181   1        if(++ledcnt >= 10)  ledcnt = 0;
+ 182   1        
+ 183   1        if(vin < vp){
+ 184   2          time5s++;
+ 185   2          if(time5s >= 5000){
+ 186   3            time5s = 0;
+ 187   3            flag5s = 1;
+ 188   3          }
+ 189   2        }
+ 190   1        else{
+ 191   2          time5s = 0;
+ 192   2          flag5s = 0;
+ 193   2        }
+ 194   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1259    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     22       9
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      2    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
