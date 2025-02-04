@@ -1,0 +1,18 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\Device.obj",
+".\Objects\Timer.obj",
+".\Objects\iic.obj",
+".\Objects\onewire.obj",
+".\Objects\Uart.obj",
+".\Objects\ds1302.obj",
+".\Objects\KBD.obj",
+".\Objects\SEG.obj",
+".\Objects\Ultra.obj",
+".\Objects\ADDA.obj",
+".\Objects\DS18B20.obj",
+".\Objects\EEPROM.obj" 
+TO ".\Objects\LQ-Ys" 
+PRINT(".\Listings\LQ-Ys.m51") RAMSIZE(256) 
+CODE( 0X0000-0XEFF8 )
+XDATA( 0X0000-0X06FF )

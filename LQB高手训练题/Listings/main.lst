@@ -1,0 +1,536 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              02/04/2024 18:05:11 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\C51\BIN\C51.EXE main.c COMPACT OPTIMIZE(8,SPEED) BROWSE MODP2 DEBUG OBJECTEXTEND PRINT(.\Listing
+                    -s\main.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "System.h"
+   2          
+   3          //计时参数
+   4          u8 cnt;//按键消抖
+   5          u8 mcnt;//主计时参数
+   6          u8 keycnt;//按键长按
+   7          u8 fcnt;//闪烁计时
+   8          u8 icnt;//信息读取计时
+   9          bit flash;//闪烁标志
+  10          u8 ucnt;//串口计时，超时进入
+  11          bit uflag;//串口标志位，有数据为1
+  12          
+  13          u8 mode = 0;//数码管显示模式。0初始界面，1时间主界面，2时间设置，3闹钟设置，4信息显示
+  14          bit uartmode;//串口控制模式，为1时键盘失效
+  15          
+  16          u8 password[8] = {1,2,3,4,5,6,7,8};//系统已储存的密码
+  17          u8 pw_input[8] = {0xbf,0xbf,0xbf,0xbf,0xbf,0xbf,0xbf,0xbf};//用户输入的密码，用于对照，无数据默认为0xbf
+  18          u8 pw_index = 8;//输入密码下标，指向8时输入密码为空
+  19          
+  20          u8 time[3] = {0x23,0x59,0x55};//即时时间
+  21          u8 alarm[3] = {0x00,0x00,0x00};//闹钟
+  22          struct T{//设置的时间
+  23            u8 d[3];//临时存储数据
+  24            u8 i;//选定下标
+  25          };
+  26          struct T temp;
+  27          bit editflag;//启用编辑标志，用后清除
+  28          bit tempb;//选定高低位
+  29          bit editmode;//选择编辑时间或闹钟，0时间，1闹钟
+  30          //bit tflag = 1;//读时间标志，在发送串口时为0
+  31          
+  32          bit light;//检测光线标志位
+  33          float temper;//温度
+  34          u8 dist;//距离
+  35          u8 str[20];//发送字符串缓存
+  36          u8 recv[10];//接收字符串缓存
+  37          u8 rindex;//接收字符串数组下标
+  38          
+  39          
+  40          void mPW_Shift(bit lr)//密码左移右移
+  41          {
+  42   1        u8 i;
+  43   1        if(lr == 0){//左移
+  44   2          for(i = pw_index;i < 8;i++){
+  45   3            pw_input[i-1] = pw_input[i];
+  46   3          }
+  47   2          pw_input[7] = 0xbf;
+  48   2        }
+  49   1        else{//右移
+  50   2          if(pw_index == 0){//数组已满
+  51   3            for(i = 7;i > 0;i--){
+  52   4              pw_input[i] = pw_input[i-1];
+  53   4            }
+  54   3            pw_input[0] = 0xbf;
+C51 COMPILER V9.56.0.0   MAIN                                                              02/04/2024 18:05:11 PAGE 2   
+
+  55   3          }
+  56   2          else{//数组未满
+  57   3            for(i = 6;i >= pw_index;i--){
+  58   4              pw_input[i+1] = pw_input[i];
+  59   4            }
+  60   3            pw_input[i+1] = 0xbf;
+  61   3          }
+  62   2        }
+  63   1      }
+  64          
+  65          void mPW_Ins(u8 b)//输入一位密码
+  66          {
+  67   1        if(pw_input[0] == 0xbf){
+  68   2          mPW_Shift(0);
+  69   2          pw_index--;
+  70   2          pw_input[7] = b;
+  71   2        }
+  72   1      }
+  73          
+  74          void mPW_Del(void)//删除一位密码
+  75          {
+  76   1        if(pw_input[7] != 0xbf){
+  77   2          mPW_Shift(1);
+  78   2          pw_index++;
+  79   2        }
+  80   1      }
+  81          
+  82          void mPW_Clear(void){//清除输入的密码
+  83   1        u8 i;
+  84   1        for(i = 0;i < 8;i++){
+  85   2          pw_input[i] = 0xbf;
+  86   2        }
+  87   1        pw_index = 8;
+  88   1      }
+  89          
+  90          bit mPW_IsCorrect(void)//密码判断函数
+  91          {
+  92   1        u8 i;
+  93   1        for(i = 0;i < 8;i++){
+  94   2          if(pw_input[i] != password[i])
+  95   2            return 0;
+  96   2        }
+  97   1        return 1;
+  98   1      }
+  99          
+ 100          void mTime_Ins(u8 dat)//输入设置的时间（逐位输入）
+ 101          {
+ 102   1        if(tempb)
+ 103   1          temp.d[temp.i] = temp.d[temp.i] & 0x0f | (DECtoBCD(dat) << 4);
+ 104   1        else
+ 105   1          temp.d[temp.i] = temp.d[temp.i] & 0xf0 | DECtoBCD(dat);
+ 106   1        tempb = ~tempb;
+ 107   1      }
+ 108          
+ 109          //void mTime_IsCorrect(u8 dat)//判断输入的时间是否合法
+ 110          //{
+ 111          //  
+ 112          //}
+ 113          
+ 114          void mInfo_Read()//读取信息函数
+ 115          {
+ 116   1        temper = Read_Temper();
+C51 COMPILER V9.56.0.0   MAIN                                                              02/04/2024 18:05:11 PAGE 3   
+
+ 117   1        dist = Ultra_Read() % 100;
+ 118   1      
+ 119   1        if(AD_Read(0x41) > 128) light = 1;
+ 120   1        else  light = 0;//有光与否
+ 121   1        if(light) DA_Write(51);//有光照输出1v
+ 122   1        else  DA_Write(255);
+ 123   1      }
+ 124          
+ 125          void KBD_Process()//按键处理函数
+ 126          {
+ 127   1        if(cnt >= 10){
+ 128   2          KBD_Read();
+ 129   2          cnt = 0;
+ 130   2          
+ 131   2          //mode0键盘区
+ 132   2          if(mode == 0){
+ 133   3            //输入数字
+ 134   3            if(trg == 0x88)   mPW_Ins(0);
+ 135   3            if(trg == 0x48)   mPW_Ins(1);
+ 136   3            if(trg == 0x28)   mPW_Ins(2);
+ 137   3            if(trg == 0x18)   mPW_Ins(3);
+ 138   3            if(trg == 0x44)   mPW_Ins(4);
+ 139   3            if(trg == 0x24)   mPW_Ins(5);
+ 140   3            if(trg == 0x14)   mPW_Ins(6);
+ 141   3            if(trg == 0x42)   mPW_Ins(7);
+ 142   3            if(trg == 0x22)   mPW_Ins(8);
+ 143   3            if(trg == 0x12)   mPW_Ins(9);
+ 144   3            
+ 145   3            if(trg == 0x81){//确认密码
+ 146   4              if(mPW_IsCorrect()){
+ 147   5                mode = 1;
+ 148   5                Device_Ctrl(0xa0,0x00);
+ 149   5                mPW_Clear();
+ 150   5                return;
+ 151   5              }
+ 152   4              else{
+ 153   5                mPW_Clear();
+ 154   5                Device_Ctrl(0xa0,0x40);
+ 155   5              }
+ 156   4            }
+ 157   3            if(trg == 0x82) mPW_Del();//删除密码
+ 158   3            
+ 159   3            if(cont == 0x84){//长按清空密码
+ 160   4              keycnt++;
+ 161   4              if(keycnt >= 100){
+ 162   5                mPW_Clear();
+ 163   5              }
+ 164   4            }
+ 165   3            if(keycnt && cont == 0x00){
+ 166   4              keycnt = 0;
+ 167   4            }
+ 168   3          }
+ 169   2          
+ 170   2          
+ 171   2          if(mode == 1){
+ 172   3            if(cont == 0x18){//S16长按返回登录界面
+ 173   4              keycnt++;
+ 174   4              if(keycnt >= 100){
+ 175   5                mode = 0;
+ 176   5              }
+ 177   4            }
+ 178   3            if(keycnt && cont == 0x00){//长按计时清零
+C51 COMPILER V9.56.0.0   MAIN                                                              02/04/2024 18:05:11 PAGE 4   
+
+ 179   4              keycnt = 0;
+ 180   4            }
+ 181   3            
+ 182   3            if(trg == 0x82){//时钟设置
+ 183   4              mode = 2;
+ 184   4              editflag = 1;
+ 185   4              editmode = 0;
+ 186   4              return;
+ 187   4            }
+ 188   3            if(trg == 0x84){//闹钟设置
+ 189   4              mode = 3;
+ 190   4              editflag = 1;
+ 191   4              editmode = 1;
+ 192   4              return;
+ 193   4            }
+ 194   3            
+ 195   3            if(trg == 0x81){//信息显示
+ 196   4              mode = 4;
+ 197   4              ES = 0;
+ 198   4              return;
+ 199   4            }
+ 200   3            
+ 201   3            if(trg == 0x41){//串口控制
+ 202   4              uartmode = 1;
+ 203   4              return;
+ 204   4            }
+ 205   3          }
+ 206   2          
+ 207   2          if(mode == 2 || mode == 3){
+ 208   3            if(editflag){
+ 209   4              u8 i;
+ 210   4              if(~editmode){
+ 211   5                for(i = 0;i < 3;i++){
+ 212   6                  temp.d[i] = time[i];
+ 213   6                }
+ 214   5              }
+ 215   4              else{
+ 216   5                EEPROM_Read(&alarm,8,3);
+ 217   5                for(i = 0;i < 3;i++){
+ 218   6                  temp.d[i] = alarm[i];
+ 219   6                }
+ 220   5              }
+ 221   4              temp.i = 0;//第一次进入从小时编辑
+ 222   4              tempb = 1;//高位
+ 223   4              editflag = 0;
+ 224   4            }
+ 225   3            
+ 226   3            switch(trg){//键盘区
+ 227   4              case 0x88:mTime_Ins(0);break;
+ 228   4              case 0x48:mTime_Ins(1);break;
+ 229   4              case 0x28:mTime_Ins(2);break;
+ 230   4              case 0x18:mTime_Ins(3);break;
+ 231   4              case 0x44:mTime_Ins(4);break;
+ 232   4              case 0x24:mTime_Ins(5);break;
+ 233   4              case 0x14:mTime_Ins(6);break;
+ 234   4              case 0x42:mTime_Ins(7);break;
+ 235   4              case 0x22:mTime_Ins(8);break;
+ 236   4              case 0x12:mTime_Ins(9);break;
+ 237   4              
+ 238   4              case 0x41:temp.i = 0;break;//小时设置
+ 239   4              case 0x21:temp.i = 1;break;//分钟设置
+ 240   4              case 0x11:temp.i = 2;break;//秒钟设置
+C51 COMPILER V9.56.0.0   MAIN                                                              02/04/2024 18:05:11 PAGE 5   
+
+ 241   4              
+ 242   4              case 0x81:{//确认保存
+ 243   5                if(~editmode)
+ 244   5                  DS1302_Set(temp.d);
+ 245   5                else{
+ 246   6                  u8 i;
+ 247   6                  for(i = 0;i < 3;i++){
+ 248   7                    temp.d[i] = alarm[i];
+ 249   7                  }
+ 250   6                  EEPROM_Write(alarm,8,3);
+ 251   6                }
+ 252   5                mode = 1;
+ 253   5              }break;
+ 254   4              case 0x82:mode = 1;break;//取消保存
+ 255   4              case 0x84:uartmode = 1;break;//串口模式
+ 256   4            }
+ 257   3          }
+ 258   2          
+ 259   2          if(mode == 4){//信息显示模式
+ 260   3            if(cont != 0x81){
+ 261   4              mode = 1;
+ 262   4              ES = 1;
+ 263   4              return;
+ 264   4            }
+ 265   3          }
+ 266   2          
+ 267   2        }
+ 268   1      }
+ 269          
+ 270          void SEG_Porcess()//数码管处理函数
+ 271          {
+ 272   1        switch(mode){
+ 273   2          case 0:{//模式0：输入密码
+ 274   3            u8 i;
+ 275   3            for(i = 0;i < 8;i++){
+ 276   4              if(pw_input[i] != 0xbf)
+ 277   4                seg_buf[i] = tab[pw_input[i]];
+ 278   4              else
+ 279   4                seg_buf[i] = 0xbf;
+ 280   4            }
+ 281   3          }break;
+ 282   2          
+ 283   2          case 1:{//模式1：显示时间   
+ 284   3            seg_buf[0] = tab[time[0] / 16];
+ 285   3            seg_buf[1] = tab[time[0] % 16];
+ 286   3            seg_buf[3] = tab[time[1] / 16];
+ 287   3            seg_buf[4] = tab[time[1] % 16];
+ 288   3            seg_buf[6] = tab[time[2] / 16];
+ 289   3            seg_buf[7] = tab[time[2] % 16];
+ 290   3            
+ 291   3            if(flash){//分隔符闪烁
+ 292   4              seg_buf[2] = 0xbf;
+ 293   4              seg_buf[5] = 0xbf;
+ 294   4            }
+ 295   3            else{
+ 296   4              seg_buf[2] = 0xff;
+ 297   4              seg_buf[5] = 0xff;
+ 298   4            }
+ 299   3          }break;
+ 300   2          
+ 301   2          case 2://模式2：时间设置  
+ 302   2          case 3:{//模式3：闹钟设置
+C51 COMPILER V9.56.0.0   MAIN                                                              02/04/2024 18:05:11 PAGE 6   
+
+ 303   3            seg_buf[0] = tab[temp.d[0] / 16];
+ 304   3            seg_buf[1] = tab[temp.d[0] % 16];
+ 305   3            seg_buf[3] = tab[temp.d[1] / 16];
+ 306   3            seg_buf[4] = tab[temp.d[1] % 16];
+ 307   3            seg_buf[6] = tab[temp.d[2] / 16];
+ 308   3            seg_buf[7] = tab[temp.d[2] % 16];
+ 309   3            
+ 310   3            if(flash){//分隔符闪烁
+ 311   4              seg_buf[2] = 0xbf;
+ 312   4              seg_buf[5] = 0xbf;
+ 313   4            }
+ 314   3            else{
+ 315   4              seg_buf[2] = 0xff;
+ 316   4              seg_buf[5] = 0xff;
+ 317   4            }
+ 318   3          }break;
+ 319   2          
+ 320   2          case 4:{
+ 321   3            seg_buf[0] = tab[(dist/10 %10)];//读超声波距离
+ 322   3            seg_buf[1] = tab[(dist %10)];
+ 323   3            seg_buf[2] = tab[light];//是否有光
+ 324   3            seg_buf[3] = 0xbf;//分隔符"-"
+ 325   3            seg_buf[4] = tab[((u8)(temper /10) %10)];//读环境温度
+ 326   3            seg_buf[5] = tab[((u8)temper %10)] & 0x7f;//带小数点
+ 327   3            seg_buf[6] = tab[((u8)(temper *10) %10)];
+ 328   3            seg_buf[7] = tab[12];//"C"
+ 329   3          }break;
+ 330   2        }
+ 331   1      }
+ 332          
+ 333          void LED_Process()//LED处理函数
+ 334          {
+ 335   1        u8 led;
+ 336   1        switch(mode){
+ 337   2          case 0:led = 0xfe;break;
+ 338   2          case 1:led = 0xfd;break;
+ 339   2          case 2:led = 0xfb;break;
+ 340   2          case 3:led = 0xf7;break;
+ 341   2          case 4:led = 0xef;break;
+ 342   2        }
+ 343   1        Device_Ctrl(0x80,led);
+ 344   1      }
+ 345          
+ 346          void Uart_Process()//串口数据处理函数
+ 347          {
+ 348   1        if(ucnt >= 20){
+ 349   2          ucnt = uflag = 0;
+ 350   2          if(uartmode){
+ 351   3            if(rindex == 6){
+ 352   4              if((mode == 2 || mode == 3) && recv[1] == 'S' && recv[2] == 'e' && recv[3] == 't'){//串口设置时间
+ 353   5                switch(recv[0]){
+ 354   6                  case 'H':temp.d[0] = ((recv[4]-'0') << 4) | (recv[5]-'0');break;
+ 355   6                  case 'M':temp.d[1] = ((recv[4]-'0') << 4) | (recv[5]-'0');break;
+ 356   6                  case 'S':temp.d[2] = ((recv[4]-'0') << 4) | (recv[5]-'0');break;
+ 357   6                }
+ 358   5                if(mode == 2)
+ 359   5                  DS1302_Set(temp.d);
+ 360   5                else{
+ 361   6                  u8 i;
+ 362   6                  for(i = 0;i < 3;i++){
+ 363   7                    temp.d[i] = alarm[i];
+ 364   7                  }
+C51 COMPILER V9.56.0.0   MAIN                                                              02/04/2024 18:05:11 PAGE 7   
+
+ 365   6                }
+ 366   5                Uart_Send("时间已设置！");
+ 367   5              }
+ 368   4              rindex = 0;
+ 369   4            }
+ 370   3            else if(rindex == 4){
+ 371   4              if(recv[0] == 'C' && recv[1] == 'K' && recv[2] == 'G' && recv[3] == 'B'){
+ 372   5                uartmode = 0;
+ 373   5                Uart_Send("串口模式关闭！");
+ 374   5                rindex = 0;
+ 375   5              }
+ 376   4            }
+ 377   3            else if(recv[0] == 'X' && recv[1] == 'G'){
+ 378   4              u8 i;
+ 379   4              for(i = 0;i < 8;i++){
+ 380   5                password[i] = recv[i + 2];
+ 381   5              }
+ 382   4              Uart_Send("密码修改成功！");
+ 383   4            }
+ 384   3            memset(recv,0,rindex);//接收数据清零
+ 385   3            rindex = 0;
+ 386   3          }
+ 387   2        }
+ 388   1      }
+ 389          
+ 390          void mInfo_Process()//信息处理发送函数
+ 391          {
+ 392   1        static bit flag1,flag2;//标志位
+ 393   1        
+ 394   1        u8 hour, min, sec;
+ 395   1        hour = BCDtoDEC(time[0]);
+ 396   1        min = BCDtoDEC(time[1]);
+ 397   1        sec = BCDtoDEC(time[2]);
+ 398   1        
+ 399   1        if(~flag1 && min == 0 && sec == 0){
+ 400   2          sprintf(str,"Time = %02d:00:00\r\n",hour);
+ 401   2          Uart_Send(str);
+ 402   2          flag1 = 1;
+ 403   2        }
+ 404   1        if(flag1 && (min || sec))
+ 405   1          flag1 = 0;
+ 406   1        
+ 407   1        if(mode == 1){
+ 408   2          if(~flag2 && sec % 3 == 0){
+ 409   3            sprintf(str,"%02d:%02d-%02dCM-%03.1f℃\r\n",hour,min,dist,temper);//-%02dCM-%3.1f℃ ,dist,temper
+ 410   3            Uart_Send(str);
+ 411   3      //      sprintf(str,"-%02dCM\r\n",dist);//-%03.1f℃  ,temper
+ 412   3      //      Uart_Send(str);
+ 413   3            flag2 = 1;
+ 414   3          }
+ 415   2          if(flag2 && sec % 3 != 0) flag2 = 0;  
+ 416   2        }
+ 417   1        
+ 418   1      }
+ 419          
+ 420          
+ 421          void Delay750ms(void) //@12.000MHz
+ 422          {
+ 423   1        unsigned char data i, j, k;
+ 424   1      
+ 425   1        _nop_();
+ 426   1        _nop_();
+C51 COMPILER V9.56.0.0   MAIN                                                              02/04/2024 18:05:11 PAGE 8   
+
+ 427   1        i = 35;
+ 428   1        j = 51;
+ 429   1        k = 182;
+ 430   1        do
+ 431   1        {
+ 432   2          do
+ 433   2          {
+ 434   3            while (--k);
+ 435   3          } while (--j);
+ 436   2        } while (--i);
+ 437   1      }
+ 438          void main()
+ 439          {
+ 440   1        Read_Temper();//上电读防止数据错乱
+ 441   1        Ultra_Read();
+ 442   1        Delay750ms();
+ 443   1        Timer0_Init();
+ 444   1        Uart1Init();
+ 445   1        Device_Init();
+ 446   1        DS1302_Set(time);
+ 447   1        
+ 448   1        EEPROM_Write(alarm,8,3);
+ 449   1        EEPROM_Read(&alarm,8,3);
+ 450   1        Uart_Send("程序初始化成功！");
+ 451   1        while(1)
+ 452   1        {
+ 453   2          if(~uartmode)
+ 454   2            KBD_Process();
+ 455   2          LED_Process();
+ 456   2          SEG_Porcess();
+ 457   2          Uart_Process();
+ 458   2          
+ 459   2          mInfo_Process();
+ 460   2          
+ 461   2          if(icnt >= 50){//每0.5s更新一次防堵塞
+ 462   3            icnt = 0;
+ 463   3            mInfo_Read();
+ 464   3          }
+ 465   2        }
+ 466   1      }
+ 467          
+ 468          void T0ISR(void) interrupt 1
+ 469          {//定时器0中断处理函数
+ 470   1        cnt++;
+ 471   1        mcnt++;
+ 472   1        SEG_Display();
+ 473   1        
+ 474   1        if(mcnt >= 10){
+ 475   2          DS1302_Read(time);
+ 476   2          fcnt++;
+ 477   2          icnt++;
+ 478   2          if(uflag)//有数据时参数累加
+ 479   2            ucnt++;
+ 480   2          mcnt = 0;
+ 481   2        }
+ 482   1        if((mode == 1 && fcnt >= 50) || ((mode == 2 || mode == 3) && fcnt >= 70)){
+ 483   2          flash = ~flash;
+ 484   2          fcnt = 0;
+ 485   2        }
+ 486   1      }
+ 487          
+ 488          void U1ISR(void) interrupt 4
+C51 COMPILER V9.56.0.0   MAIN                                                              02/04/2024 18:05:11 PAGE 9   
+
+ 489          {//串口1中断处理函数
+ 490   1        if(RI == 1){//接收中断
+ 491   2          recv[rindex] = SBUF;
+ 492   2          rindex++;
+ 493   2          uflag = 1;//有数据，拉高标志位
+ 494   2          RI = 0;
+ 495   2        }
+ 496   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2234    ----
+   CONSTANT SIZE    =    108    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =     70       7
+   DATA SIZE        =   ----       3
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      9       1
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
