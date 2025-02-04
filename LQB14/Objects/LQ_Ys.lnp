@@ -1,0 +1,13 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\Timer.obj",
+".\Objects\Device.obj",
+".\Objects\iic.obj",
+".\Objects\onewire.obj",
+".\Objects\SEG.obj",
+".\Objects\KBD.obj",
+".\Objects\Ds1302.obj",
+".\Objects\ADDA.obj",
+".\Objects\Ds18B20.obj" 
+TO ".\Objects\LQ_Ys" 
+PRINT(".\Listings\LQ_Ys.m51") RAMSIZE(256) 

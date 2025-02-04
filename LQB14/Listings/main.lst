@@ -1,0 +1,437 @@
+C51 COMPILER V9.60.0.0   MAIN                                                              03/11/2024 13:37:46 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE main.c LARGE OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\ma
+                    -in.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "System.h"
+   2          
+   3          //计时变量
+   4          u8 kbd_cnt,seg_cnt,led_cnt,time_cnt,mcnt,mcd1,mcd2,fcnt;//减速变量
+   5          bit icnt = 0;//1s触发处理数据
+   6          bit cflag = 0;//触发采集标志位，超时后清除
+   7          u8 Timer_1000Ms = 0;//1s计时变量
+   8          bit flash = 0;//0.1s报警闪烁
+   9          bit newtemp;//更新温度标志位
+  10          
+  11          bit up;//相较上升标志
+  12          u8 led = 0xff;
+  13          //题设变量
+  14          u8 mode = 1;//模式1时间模式，模式234回显模式，模式5参数模式，模式6温湿度界面（采集功能触发后，数码管立刻切
+             -换到温湿度界面）
+  15          u8 modetemp;//触发前模式
+  16          bit light = 0;//光照变化标志位，从“亮”状态切换到“暗”状态时变1
+  17          u8 time[3] = {0x13,0x03,0x05};//实时时间
+  18          u8 ptemp = 30;//温度参数
+  19          struct E{
+  20            u8 tem;//温度
+  21            u8 wet;//湿度
+  22          };
+  23          struct E edata[99];//采集到的数据
+  24          u8 eindex = 0;//触发次数，数组下标
+  25          u16 freq = 0;//检测到T0频率
+  26          float tem_aver = 0.0;//温度平均数
+  27          float wet_aver = 0.0;//湿度平均数
+  28          u8 tem_max = 0;//温度最大值
+  29          u8 wet_max = 0;//湿度最大值
+  30          u8 etime[2];//最近一次采集到的时间（小时分钟）
+  31          
+  32          
+  33          void mTime_Process()//读取时间
+  34          {
+  35   1        if(time_cnt)  return;
+  36   1        time_cnt = 1;
+  37   1        
+  38   1        DS1302_Read(time);
+  39   1      }
+  40          
+  41          u8 mWet_Process()//频率转换为湿度
+  42          {
+  43   1        float w;//湿度（十进制）
+  44   1        if((freq >= 200) && (freq <= 2000)){
+  45   2          w = (80 / 1800.0) * (freq - 200) + 10.0;
+  46   2          return (u8)w;
+  47   2        }
+  48   1        else
+  49   1          return 0xaa;//数据无效
+  50   1      }
+  51          
+  52          void mCollect_Process()//采集处理函数
+  53          {
+C51 COMPILER V9.60.0.0   MAIN                                                              03/11/2024 13:37:46 PAGE 2   
+
+  54   1        if(mcnt)  return;
+  55   1        mcnt = 1;
+  56   1        
+  57   1        if(~light)
+  58   1          if(AD_Read(0x41) >= 128){
+  59   2            light = 1;
+  60   2            return;
+  61   2          }
+  62   1        
+  63   1        if(light && AD_Read(0x41) < 128){
+  64   2          light = 0;
+  65   2          cflag = 1;
+  66   2          modetemp = mode;
+  67   2          mode = 6;
+  68   2          
+  69   2          edata[eindex].tem = (u8)Read_Temper();
+  70   2          edata[eindex].wet = mWet_Process();
+  71   2          eindex++;
+  72   2          etime[0] = time[0];
+  73   2          etime[1] = time[1];
+  74   2      
+  75   2        }
+  76   1      }
+  77          
+  78          void mInfo_Process()//数据处理函数，处理平均值等
+  79          {
+  80   1        static bit iflag;//判断是否更新数据
+  81   1        u8 i;
+  82   1        u8 max1 = 0;//循环数，打擂最大值
+  83   1        u8 max2 = 0;
+  84   1        u8 ninfo = 0;//无效数据
+  85   1        u32 sum1 = 0;//累加值，用于计算平均数
+  86   1        u32 sum2 = 0;
+  87   1        
+  88   1        if(cflag && ~iflag){
+  89   2          iflag = 1;
+  90   2          
+  91   2          for(i = 0;i < eindex;i++){
+  92   3            if(edata[i].wet == 0xaa){
+  93   4              ninfo++;
+  94   4              continue;
+  95   4            }
+  96   3            sum1 += edata[i].tem;
+  97   3            if(edata[i].tem > max1)
+  98   3              max1 = edata[i].tem;
+  99   3            sum2 += edata[i].wet;
+ 100   3            if(edata[i].wet > max2)
+ 101   3              max2 = edata[i].wet;
+ 102   3          }
+ 103   2          if((eindex - ninfo) != 0){
+ 104   3            tem_aver = sum1 * 1.0 / (eindex - ninfo) ;
+ 105   3            tem_max = max1;
+ 106   3            wet_aver = sum2 * 1.0 / (eindex - ninfo) ;
+ 107   3            wet_max = max2;
+ 108   3          }
+ 109   2          else{
+ 110   3            tem_aver = 0.0;
+ 111   3            tem_max = 0;
+ 112   3            wet_aver = 0.0;
+ 113   3            wet_max = 0;
+ 114   3          }
+ 115   2        }
+C51 COMPILER V9.60.0.0   MAIN                                                              03/11/2024 13:37:46 PAGE 3   
+
+ 116   1        else if(~cflag && iflag)  iflag = 0;
+ 117   1        else{return;}
+ 118   1      }
+ 119          
+ 120          
+ 121          void KBD_Process()
+ 122          {
+ 123   1        static u8 pcnt = 0;//长按计时
+ 124   1        static bit flag;//长按标志位
+ 125   1        if(kbd_cnt) return;
+ 126   1        kbd_cnt = 1;
+ 127   1        
+ 128   1        KBD_Read();
+ 129   1        
+ 130   1        if(trg == 0x88){//切换时间、回显、参数
+ 131   2          switch(mode){
+ 132   3            case 1:mode = 2;break;
+ 133   3            case 2:
+ 134   3            case 3:
+ 135   3            case 4:mode = 5;break;
+ 136   3            case 5:mode = 1;break;
+ 137   3          }
+ 138   2          return;
+ 139   2        }
+ 140   1        
+ 141   1        if((mode == 2|| mode == 3|| mode == 4) && trg == 0x84){
+ 142   2          if(mode == 4) mode = 2;
+ 143   2          else  mode++;
+ 144   2          return;
+ 145   2        }
+ 146   1        
+ 147   1        if(mode == 5 && trg == 0x44)  ptemp++;
+ 148   1        if(mode == 5 && trg == 0x48)  ptemp--;
+ 149   1        
+ 150   1        if(mode == 1 && cont == 0x48){
+ 151   2          pcnt++;
+ 152   2          if(pcnt >= 200){
+ 153   3            pcnt = 0;
+ 154   3            flag = 1;
+ 155   3          }
+ 156   2        }
+ 157   1        else  pcnt = 0;
+ 158   1        if(flag){
+ 159   2          flag = 0;
+ 160   2          eindex = 0;
+ 161   2        }
+ 162   1      }
+ 163          
+ 164          void SEG_Process()
+ 165          {
+ 166   1        if(seg_cnt) return;
+ 167   1        seg_cnt = 1;
+ 168   1        
+ 169   1        switch(mode){
+ 170   2          case 1:{
+ 171   3            seg_buf[0] = tab[time[0] / 16];
+ 172   3            seg_buf[1] = tab[time[0] % 16];
+ 173   3            seg_buf[2] = 0xbf;//"-"
+ 174   3            seg_buf[3] = tab[time[1] / 16];
+ 175   3            seg_buf[4] = tab[time[1] % 16];
+ 176   3            seg_buf[5] = 0xbf;//"-"
+ 177   3            seg_buf[6] = tab[time[2] / 16];
+C51 COMPILER V9.60.0.0   MAIN                                                              03/11/2024 13:37:46 PAGE 4   
+
+ 178   3            seg_buf[7] = tab[time[2] % 16];
+ 179   3          }break;
+ 180   2          
+ 181   2          case 2:{
+ 182   3            u8 i;
+ 183   3            seg_buf[0] = tab[12];//"C"
+ 184   3            if(eindex == 0){
+ 185   4              for(i = 1; i < 8; i++){
+ 186   5                seg_buf[i] = 0xff;
+ 187   5              }
+ 188   4            }
+ 189   3            else{
+ 190   4              seg_buf[1] = 0xff;
+ 191   4              seg_buf[2] = tab[tem_max /10 %10];
+ 192   4              seg_buf[3] = tab[tem_max %10];
+ 193   4              seg_buf[4] = 0xbf;//"-"
+ 194   4              seg_buf[5] = tab[(u8)tem_aver /10 %10];
+ 195   4              seg_buf[6] = tab[(u8)tem_aver %10] & 0x7f;//"."
+ 196   4              seg_buf[7] = tab[(u8)(tem_aver *10) %10];
+ 197   4            }
+ 198   3          }break;
+ 199   2          
+ 200   2          case 3:{
+ 201   3            u8 i;
+ 202   3            seg_buf[0] = 0x89;//"H"
+ 203   3            if(eindex == 0){
+ 204   4              for(i = 1; i < 8; i++){
+ 205   5                seg_buf[i] = 0xff;
+ 206   5              }
+ 207   4            }
+ 208   3            else{
+ 209   4              seg_buf[1] = 0xff;
+ 210   4              seg_buf[2] = tab[wet_max /10 %10];
+ 211   4              seg_buf[3] = tab[wet_max %10];
+ 212   4              seg_buf[4] = 0xbf;//"-"
+ 213   4              seg_buf[5] = tab[(u8)wet_aver /10 %10];
+ 214   4              seg_buf[6] = tab[(u8)wet_aver %10] & 0x7f;//"."
+ 215   4              seg_buf[7] = tab[(u8)(wet_aver *10) %10];
+ 216   4            }
+ 217   3          }break;
+ 218   2          
+ 219   2          case 4:{
+ 220   3            u8 i;
+ 221   3            seg_buf[0] = tab[15];//"F"
+ 222   3            seg_buf[1] = tab[eindex/10%10];
+ 223   3            seg_buf[2] = tab[eindex%10];
+ 224   3            if(eindex == 0){
+ 225   4              for(i = 3;i<8;i++){
+ 226   5                seg_buf[i] = 0xff;
+ 227   5              }
+ 228   4            }
+ 229   3            else{
+ 230   4              seg_buf[3] = tab[etime[0] / 16];
+ 231   4              seg_buf[4] = tab[etime[0] % 16];
+ 232   4              seg_buf[5] = 0xbf;//"-"
+ 233   4              seg_buf[6] = tab[etime[1] / 16];
+ 234   4              seg_buf[7] = tab[etime[1] % 16];
+ 235   4            }
+ 236   3          }break;
+ 237   2          
+ 238   2          case 5:{
+ 239   3            seg_buf[0] = 0x8c;//"P"
+C51 COMPILER V9.60.0.0   MAIN                                                              03/11/2024 13:37:46 PAGE 5   
+
+ 240   3            seg_buf[1] = 0xff;
+ 241   3            seg_buf[2] = 0xff;
+ 242   3            seg_buf[3] = 0xff;
+ 243   3            seg_buf[4] = 0xff;
+ 244   3            seg_buf[5] = 0xff;
+ 245   3            seg_buf[6] = tab[ptemp /10 %10];
+ 246   3            seg_buf[7] = tab[ptemp %10];
+ 247   3          }break;
+ 248   2          
+ 249   2          case 6:{
+ 250   3            seg_buf[0] = tab[14];//"E"
+ 251   3            seg_buf[1] = 0xff;
+ 252   3            seg_buf[2] = 0xff;
+ 253   3            seg_buf[3] = tab[(edata[eindex-1].tem) /10 %10];
+ 254   3            seg_buf[4] = tab[(edata[eindex-1].tem) %10];
+ 255   3            seg_buf[5] = 0xbf;//"-"
+ 256   3            if(edata[eindex-1].wet != 0xaa){
+ 257   4              seg_buf[6] = tab[(edata[eindex-1].wet) /10 %10];
+ 258   4              seg_buf[7] = tab[(edata[eindex-1].wet) %10];
+ 259   4            }
+ 260   3            else{
+ 261   4              seg_buf[6] = tab[(edata[eindex-1].wet) /16];//"A"
+ 262   4              seg_buf[7] = tab[(edata[eindex-1].wet) %16];
+ 263   4            }
+ 264   3          }break;
+ 265   2          
+ 266   2        }
+ 267   1      }
+ 268          
+ 269          void LED_Process()
+ 270          {
+ 271   1        if(led_cnt) return;
+ 272   1        led_cnt = 1;
+ 273   1        
+ 274   1        
+ 275   1        switch(mode){
+ 276   2          case 1:led = 0xfe;break;
+ 277   2          case 2:
+ 278   2          case 3:
+ 279   2          case 4:led = 0xfd;break;
+ 280   2          case 5:led = 0xfb;break;
+ 281   2          case 6:led = 0xff;break;
+ 282   2        }
+ 283   1        
+ 284   1        if(flash)
+ 285   1          led &= 0xf7;//L4闪烁
+ 286   1        else
+ 287   1          led &= 0xff;
+ 288   1        
+ 289   1        if(edata[eindex].wet == 0xaa)
+ 290   1          led &= 0xef;//L5点亮  
+ 291   1        
+ 292   1        if(up)
+ 293   1          led &= 0xdf;//L6点亮
+ 294   1        
+ 295   1        Device_Ctrl(0x80,led);
+ 296   1      }
+ 297          
+ 298          void Delay750ms(void) //@12.000MHz
+ 299          {
+ 300   1        unsigned char data i, j, k;
+ 301   1      
+C51 COMPILER V9.60.0.0   MAIN                                                              03/11/2024 13:37:46 PAGE 6   
+
+ 302   1        _nop_();
+ 303   1        _nop_();
+ 304   1        i = 35;
+ 305   1        j = 51;
+ 306   1        k = 182;
+ 307   1        do
+ 308   1        {
+ 309   2          do
+ 310   2          {
+ 311   3            while (--k);
+ 312   3          } while (--j);
+ 313   2        } while (--i);
+ 314   1      }
+ 315          
+ 316          void main()
+ 317          {
+ 318   1        Read_Temper();
+ 319   1        mWet_Process();
+ 320   1        Delay750ms();//防止读到脏东西
+ 321   1        
+ 322   1        Timer0_Init();
+ 323   1        Timer1_Init();
+ 324   1        Timer2_Init();
+ 325   1        Device_Init();
+ 326   1        DS1302_Set(time);
+ 327   1        
+ 328   1        while(1)
+ 329   1        { 
+ 330   2          KBD_Process();
+ 331   2          SEG_Process();
+ 332   2          LED_Process();
+ 333   2          
+ 334   2          mTime_Process();
+ 335   2          if(~cflag)
+ 336   2            mCollect_Process();
+ 337   2          if(icnt){
+ 338   3            mInfo_Process();
+ 339   3            icnt = 0;
+ 340   3          }
+ 341   2          
+ 342   2          if(newtemp){
+ 343   3            newtemp = 0;
+ 344   3            Read_Temper();//更新温度
+ 345   3          }
+ 346   2        }
+ 347   1      }
+ 348          
+ 349          void T1ISR() interrupt 3
+ 350          {
+ 351   1        SEG_Display();
+ 352   1        
+ 353   1        if(++kbd_cnt >= 10)   kbd_cnt = 0;
+ 354   1        if(++seg_cnt >= 200)  seg_cnt = 0;
+ 355   1        if(++time_cnt >= 25)  time_cnt = 0;
+ 356   1        if(++led_cnt >= 10) led_cnt = 0;
+ 357   1        
+ 358   1        if(++mcnt >= 10)  mcnt = 0;
+ 359   1        if(cflag){
+ 360   2          mcd1++;
+ 361   2          if(mcd1 >= 100){
+ 362   3            mcd1 = 0;
+ 363   3            mcd2++;
+C51 COMPILER V9.60.0.0   MAIN                                                              03/11/2024 13:37:46 PAGE 7   
+
+ 364   3            if(mcd2 >= 30){//3s内不触发
+ 365   4              mcd2 = 0;
+ 366   4              if(edata[eindex-1].wet == 0xaa) --eindex;
+ 367   4              cflag = 0;
+ 368   4              mode = modetemp;
+ 369   4            }
+ 370   3          }
+ 371   2        }
+ 372   1      }
+ 373          
+ 374          void T2ISR() interrupt 12
+ 375          {
+ 376   1        if((edata[eindex-1].tem > ptemp) && eindex){
+ 377   2          fcnt++;
+ 378   2          if(fcnt >= 10){
+ 379   3            fcnt = 0;
+ 380   3            flash = ~flash;
+ 381   3          }
+ 382   2        }
+ 383   1        else if(edata[eindex-1].tem <= ptemp) flash = 0;
+ 384   1        
+ 385   1        if(++Timer_1000Ms >= 100){//读取频率
+ 386   2          Timer_1000Ms = 0;
+ 387   2          freq = (TH0 << 8) | TL0;
+ 388   2          TL0 = 0;
+ 389   2          TH0 = 0;
+ 390   2          icnt = 1;
+ 391   2          newtemp = 1;
+ 392   2          if(eindex >= 2){
+ 393   3            if((edata[eindex - 1].tem > edata[eindex - 2].tem) && (edata[eindex - 1].wet > edata[eindex - 2].wet))
+ 394   3              up = 1;
+ 395   3            else
+ 396   3              up = 0;
+ 397   3          }
+ 398   2        }
+ 399   1      }
+ 400          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2356    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =    230      13
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       3
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      8    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
