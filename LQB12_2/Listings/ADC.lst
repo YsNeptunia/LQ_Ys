@@ -1,0 +1,47 @@
+C51 COMPILER V9.60.0.0   ADC                                                               03/24/2024 22:59:15 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE ADC
+OBJECT MODULE PLACED IN .\Objects\ADC.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE ADC.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\ADC.lst) 
+                    -TABS(2) OBJECT(.\Objects\ADC.obj)
+
+line level    source
+
+   1          #include "ADC.h"
+   2          
+   3          //控制字 启用DAC：0x40 光敏(AIN1)0x41，Rb2(AIN3)0x43 同时获取需要调换！
+   4          //8591写地址：0x90；读地址：0x91
+   5          
+   6          u8 AD_Read(u8 addr)
+   7          {
+   8   1        u8 dat;
+   9   1        I2CStart();
+  10   1        I2CSendByte(0x90);
+  11   1        I2CWaitAck();
+  12   1        I2CSendByte(addr);
+  13   1        I2CWaitAck();
+  14   1        
+  15   1        I2CStart();
+  16   1        I2CSendByte(0x91);
+  17   1        I2CWaitAck();
+  18   1        dat = I2CReceiveByte();
+  19   1        I2CSendAck(1);
+  20   1        I2CStop();
+  21   1        
+  22   1        return dat;
+  23   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     48    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       2
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

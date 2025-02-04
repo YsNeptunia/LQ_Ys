@@ -1,0 +1,35 @@
+C51 COMPILER V9.60.0.0   BTN                                                               03/24/2024 22:59:15 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE BTN
+OBJECT MODULE PLACED IN .\Objects\BTN.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE BTN.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\BTN.lst) 
+                    -TABS(2) OBJECT(.\Objects\BTN.obj)
+
+line level    source
+
+   1          #include "BTN.h"
+   2          
+   3          u8 pres,cont,rels;//按下，长按，松手
+   4          void BTN_Read()
+   5          {
+   6   1        u8 state = P3 & 0x0f ^ 0xff;//屏蔽高四位防止读到脏东西
+   7   1        state &= 0x0f;//将高四位清零（异或操作会置1）
+   8   1        pres = state & (state ^cont);
+   9   1        rels = ~state & (state ^cont);
+  10   1        cont = state;
+  11   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     24    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      3    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
